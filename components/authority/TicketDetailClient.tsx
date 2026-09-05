@@ -28,7 +28,15 @@ export default function TicketDetailClient({
   actions: TicketAction[];
 }) {
   const router = useRouter();
-  const { ticket, events, evidence, chain, authority, contractor, contractorOptions } = detail;
+  const { ticket, events, evidence, chain, authority, contractor, contractorOptions, authorityOptions } = detail;
+
+  // Anywhere but where it already is. Defaults to the office registered as the
+  // current owner's parent, so the common case is one press, but it is a
+  // choice on screen rather than a guess made for you.
+  const forwardOptions = authorityOptions.filter((a) => a._id !== ticket.authorityId);
+  const suggested = authority?.parentId
+    ? (forwardOptions.find((a) => a._id === authority.parentId)?._id ?? '')
+    : '';
 
   const [actor, setActor] = React.useState('');
   const [note, setNote] = React.useState('');
@@ -36,9 +44,10 @@ export default function TicketDetailClient({
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [forwarded, setForwarded] = React.useState<string | null>(null);
+  const [forwardTo, setForwardTo] = React.useState(suggested);
 
   const settled = ['repaired', 'verified', 'closed'].includes(ticket.state);
-  const canForward = !ticket.atTopOfChain && !settled;
+  const canForward = !settled && forwardOptions.length > 0 && forwardTo !== '';
 
   async function run(action: TicketAction) {
     if (!actor.trim()) {
@@ -81,12 +90,17 @@ export default function TicketDetailClient({
       const res = await fetch(`/api/tickets/${ticket.id}/forward`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ actor: actor.trim(), note: note.trim() || null }),
+        body: JSON.stringify({
+          actor: actor.trim(),
+          note: note.trim() || null,
+          toAuthorityId: forwardTo || null,
+        }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `failed (${res.status})`);
       setNote('');
-      setForwarded(`Now with the ${(LEVEL_LABEL[body.level] ?? body.level).toLowerCase()}.`);
+      const landed = authorityOptions.find((a) => a._id === body.authorityId);
+      setForwarded(`Now with ${landed?.name ?? (LEVEL_LABEL[body.level] ?? body.level)}.`);
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -244,15 +258,43 @@ export default function TicketDetailClient({
               </div>
 
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${color.a.lineSoft}` }}>
-                <Btn small onClick={forward} disabled={busy !== null || !canForward}>
-                  {busy === 'forward' ? 'Forwarding…' : 'Forward to higher ups'}
-                </Btn>
+                <span className="lbl" style={{ color: color.a.muted }}>Forward to higher ups</span>
+                <p className="tiny" style={{ color: color.a.ink2, marginTop: 5, lineHeight: 1.5 }}>
+                  Currently with{' '}
+                  <strong style={{ fontWeight: 600 }}>{authority?.name ?? 'nobody — unassigned'}</strong>
+                  {authority ? ` · ${LEVEL_LABEL[authority.level] ?? authority.level}` : ''}
+                </p>
+
+                {forwardOptions.length ? (
+                  <>
+                    <select
+                      value={forwardTo}
+                      onChange={(e) => setForwardTo(e.target.value)}
+                      aria-label="Office to forward this ticket to"
+                      style={{ ...inputStyle, marginTop: 8 }}
+                    >
+                      <option value="">Choose an office…</option>
+                      {forwardOptions.map((a) => (
+                        <option key={a._id} value={a._id}>
+                          {a.name} — {LEVEL_LABEL[a.level] ?? a.level}
+                          {a._id === suggested ? ' (above this one)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <div style={{ marginTop: 9 }}>
+                      <Btn small onClick={forward} disabled={busy !== null || !canForward}>
+                        {busy === 'forward' ? 'Forwarding…' : 'Forward to higher ups'}
+                      </Btn>
+                    </div>
+                  </>
+                ) : null}
+
                 <p className="tiny" style={{ color: color.a.dim, marginTop: 7, lineHeight: 1.5 }}>
-                  {ticket.atTopOfChain
-                    ? 'Already at the top of the chain — no office above this one is registered.'
+                  {!forwardOptions.length
+                    ? 'No other office is registered, so there is nowhere to send it.'
                     : settled
-                      ? 'The work is done. Reopen it before sending it up.'
-                      : `Hands it to whoever is above the ${(LEVEL_LABEL[ticket.level] ?? ticket.level).toLowerCase()}, signed by you.`}
+                      ? 'The work is done. Reopen it before sending it on.'
+                      : 'It moves to that office and takes their level, signed by you.'}
                 </p>
               </div>
 

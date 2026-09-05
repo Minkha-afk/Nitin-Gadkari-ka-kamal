@@ -7,18 +7,23 @@
  */
 
 import EscalationsClient from '@/components/authority/EscalationsClient';
-import { getQueue, scopeName, selectedScope, SETTLED } from '@/lib/authority';
+import { getAuthorityTree, getQueue, scopeName, selectedScope, SETTLED } from '@/lib/authority';
 
 export const dynamic = 'force-dynamic';
 
 export default async function EscalationsPage() {
   const scope = await selectedScope();
-  const [{ rows, configured }, label] = await Promise.all([getQueue(scope), scopeName(scope)]);
+  const [{ rows, configured }, label, tree] = await Promise.all([
+    getQueue(scope),
+    scopeName(scope),
+    getAuthorityTree(),
+  ]);
   const open = rows.filter((r) => !SETTLED.includes(r.state));
   return (
     <EscalationsClient
       escalated={open.filter((r) => r.escalated)}
       waiting={open.filter((r) => !r.escalated)}
+      authorities={tree.nodes}
       configured={configured}
       scopeLabel={label}
     />

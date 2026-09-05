@@ -1,6 +1,9 @@
 /**
- * POST /api/tickets/{id}/forward — hand the ticket to the level above.
- * Body: { actor, note? }
+ * POST /api/tickets/{id}/forward — hand the ticket to another office.
+ * Body: { actor, toAuthorityId?, note? }
+ *
+ * `toAuthorityId` names where it goes. Left out, it goes to the office
+ * registered as the current owner's parent, and is refused if there is none.
  *
  * There is no deadline that does this on its own. Somebody decides the office
  * holding the ticket is not answering, signs the decision, and it climbs one
@@ -20,7 +23,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!isConfigured()) return Response.json({ error: 'database not configured' }, { status: 503 });
   const { id } = await ctx.params;
 
-  let body: { actor?: string; note?: string };
+  let body: { actor?: string; note?: string; toAuthorityId?: string };
   try {
     body = await req.json();
   } catch {
@@ -31,8 +34,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   try {
-    const ticket = await forwardUp(id, body.actor.trim(), { note: body.note ?? null });
-    return Response.json({ ticket: toView(ticket, await deviceId()), level: ticket.level });
+    const ticket = await forwardUp(id, body.actor.trim(), {
+      note: body.note ?? null,
+      toAuthorityId: body.toAuthorityId ?? null,
+    });
+    return Response.json({
+      ticket: toView(ticket, await deviceId()),
+      level: ticket.level,
+      authorityId: ticket.authorityId,
+    });
   } catch (e) {
     const msg = (e as Error).message;
     return Response.json({ error: msg }, { status: msg.startsWith('no ticket') ? 404 : 400 });

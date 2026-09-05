@@ -346,6 +346,8 @@ export interface TicketDetail {
   authority: AuthorityDoc | null;
   contractor: ContractorDoc | null;
   contractorOptions: ContractorDoc[];
+  /** Every registered office, so forwarding can name where it goes. */
+  authorityOptions: AuthorityDoc[];
 }
 
 export async function getTicketDetail(id: string): Promise<TicketDetail | null> {
@@ -356,14 +358,16 @@ export async function getTicketDetail(id: string): Promise<TicketDetail | null> 
   const ticket = await ticketCol.findOne({ _id: id });
   if (!ticket) return null;
 
-  const [events, evidence, chain, authority, contractor, contractorOptions] = await Promise.all([
-    eventCol.find({ ticketId: id }).sort({ seq: 1 }).toArray(),
-    defectCol.find({ _id: { $in: ticket.defectIds } }).toArray(),
-    verifyChain(id),
-    ticket.authorityId ? authCol.findOne({ _id: ticket.authorityId }) : Promise.resolve(null),
-    ticket.contractorId ? contractorCol.findOne({ _id: ticket.contractorId }) : Promise.resolve(null),
-    contractorCol.find({}).sort({ name: 1 }).toArray(),
-  ]);
+  const [events, evidence, chain, authority, contractor, contractorOptions, authorityOptions] =
+    await Promise.all([
+      eventCol.find({ ticketId: id }).sort({ seq: 1 }).toArray(),
+      defectCol.find({ _id: { $in: ticket.defectIds } }).toArray(),
+      verifyChain(id),
+      ticket.authorityId ? authCol.findOne({ _id: ticket.authorityId }) : Promise.resolve(null),
+      ticket.contractorId ? contractorCol.findOne({ _id: ticket.contractorId }) : Promise.resolve(null),
+      contractorCol.find({}).sort({ name: 1 }).toArray(),
+      authCol.find({}).toArray(),
+    ]);
 
   return {
     ticket: toRow(ticket),
@@ -373,8 +377,22 @@ export async function getTicketDetail(id: string): Promise<TicketDetail | null> 
     authority,
     contractor,
     contractorOptions,
+    // Most senior first: forwarding is usually upward, so the offices a ticket
+    // is likely to be sent to should not be at the bottom of the list.
+    authorityOptions: authorityOptions.sort(
+      (a, b) =>
+        LEVEL_ORDER.indexOf(b.level) - LEVEL_ORDER.indexOf(a.level) || a.name.localeCompare(b.name),
+    ),
   };
 }
+
+const LEVEL_ORDER: AuthorityLevel[] = [
+  'public',
+  'ward_engineer',
+  'executive_engineer',
+  'commissioner',
+  'state_department',
+];
 
 /* ── contractors ───────────────────────────────────────────────────── */
 

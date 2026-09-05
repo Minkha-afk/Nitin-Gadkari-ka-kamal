@@ -292,17 +292,20 @@ export async function transition(
  * timer firing in the background — nobody can later claim the system escalated
  * it on its own.
  *
- * The ticket follows your authority tree, not a fixed four-rung ladder. If the
- * office holding it has a registered parent, the ticket lands on that desk and
- * takes that desk's level — so a chain that goes NHAI package office → MoRTH
- * climbs the way your organisation actually does, skipping rungs it does not
- * use. The generic ladder in lib/ladder.ts is only the fallback for a ticket
- * whose owner has no parent registered, or no owner at all.
+ * Where it goes is either said outright or read from your authority tree. With
+ * `toAuthorityId` the ticket lands on that office and takes that office's level
+ * — which is how a chain like NHAI package office → MoRTH climbs, skipping
+ * rungs it does not use. Without one, it goes to the office registered as the
+ * current owner's parent.
+ *
+ * If neither is available the forward is refused. It used to fall back to "any
+ * office at the next level up", and that is exactly how every ticket in a flat
+ * authority list ends up on the same desk: a guess is worse than a question.
  */
 export async function forwardUp(
   ticketId: string,
   actor: string,
-  opts: { note?: string | null } = {},
+  opts: { note?: string | null; toAuthorityId?: string | null } = {},
 ) {
   const col = await tickets();
   const ticket = await col.findOne({ _id: ticketId });
@@ -311,49 +314,56 @@ export async function forwardUp(
     throw new Error(`cannot forward a ticket that is ${ticket.state} — reopen it first`);
   }
 
-  const parent = await parentAuthorityOf(ticket.authorityId);
-  const to = parent?.level ?? nextLevel(ticket.level);
-  if (!to) {
+  const authCol = await authorities();
+  let target = null;
+  if (opts.toAuthorityId) {
+    target = await authCol.findOne({ _id: opts.toAuthorityId });
+    if (!target) throw new Error(`no authority "${opts.toAuthorityId}"`);
+    if (target._id === ticket.authorityId) {
+      throw new Error(`this ticket is already with ${target.name}`);
+    }
+  } else {
+    target = await parentAuthorityOf(ticket.authorityId, authCol);
+  }
+
+  if (!target) {
+    const to = nextLevel(ticket.level);
     throw new Error(
-      'this ticket is already at the top of the chain — no office above the one holding it is registered',
+      ticket.authorityId
+        ? 'no office is registered above this one — choose where to send it'
+        : to
+          ? 'this ticket has no owner yet — choose which office it goes to'
+          : 'this ticket is already at the top of the chain',
     );
   }
 
-  // Only fall back to "some office at that level" when the tree could not name
-  // one: an unowned ticket has to land somewhere to be chased.
-  const authorityId = parent?._id ?? (await anyAuthorityAt(to)) ?? ticket.authorityId;
   const now = new Date();
-
   await col.updateOne(
     { _id: ticketId },
     {
-      $set: { level: to, authorityId, lastEscalatedAt: now, updatedAt: now },
-      $inc: { escalationCount: 1 },
+      $set: { level: target.level, authorityId: target._id, lastEscalatedAt: now, updatedAt: now },
+      // Handing an unowned ticket to its first office is routing, not climbing:
+      // counting it as an escalation would overstate what the offices did.
+      ...(ticket.authorityId ? { $inc: { escalationCount: 1 } } : {}),
     },
   );
   await appendEvent(
     ticketId,
-    'forwarded',
+    ticket.authorityId ? 'forwarded' : 'assigned-authority',
     actor,
-    opts.note?.trim() ||
-      (parent
-        ? `Forwarded up to ${parent.name}`
-        : `Forwarded up from ${ticket.level} to ${to}`),
+    opts.note?.trim() || `Sent to ${target.name}`,
     'warn',
   );
   return (await col.findOne({ _id: ticketId }))!;
 }
 
 /** The office registered as this one's parent, if the tree knows of one. */
-async function parentAuthorityOf(authorityId: string | null) {
+async function parentAuthorityOf(
+  authorityId: string | null,
+  col: Awaited<ReturnType<typeof authorities>>,
+) {
   if (!authorityId) return null;
-  const col = await authorities();
   const current = await col.findOne({ _id: authorityId });
   if (!current?.parentId) return null;
   return (await col.findOne({ _id: current.parentId })) ?? null;
-}
-
-async function anyAuthorityAt(level: AuthorityLevel) {
-  const col = await authorities();
-  return (await col.findOne({ level }))?._id ?? null;
 }

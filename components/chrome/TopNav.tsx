@@ -15,7 +15,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Brand from './Brand';
-import { IconCar, IconList, IconMap, IconShield, IconUp } from './Icons';
+import { IconCar, IconGrid, IconList, IconMap, IconShield, IconUp } from './Icons';
 
 const NAV = [
   { href: '/', label: 'Home', Icon: IconMap },
@@ -84,6 +84,21 @@ export default function TopNav() {
           </nav>
 
           <span style={{ flex: 1 }} />
+
+          {/*
+            The way into the authority side. Ghost rather than solid: it is a
+            door for the few people who work tickets, not the thing a citizen
+            landing here is meant to press. Hidden on the phone bar, which
+            keeps only the wordmark and the primary action.
+          */}
+          <Link
+            href="/console"
+            className="pill pill-ghost pill-sm hide-sm"
+            style={{ textDecoration: 'none' }}
+          >
+            <IconGrid size={14} />
+            Console
+          </Link>
 
           <Link
             href="/upload"
