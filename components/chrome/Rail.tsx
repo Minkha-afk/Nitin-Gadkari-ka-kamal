@@ -71,7 +71,7 @@ export default function Rail() {
         gap: 6,
       }}
     >
-      <Link href="/console" aria-label="RoadSense" style={{ marginBottom: 10 }}>
+      <Link href="/console" aria-label="HappyJourney" style={{ marginBottom: 10 }}>
         <LaneGlyph size={26} />
       </Link>
       {TOP.map((x) => item(x.href, x.label, x.Icon))}

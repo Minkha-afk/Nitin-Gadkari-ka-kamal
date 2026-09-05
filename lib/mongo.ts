@@ -4,7 +4,7 @@
  * Collections:
  *   uploads     — one document per analysis job (the file someone sent in)
  *   defects     — one document per physical defect, deduplicated by track id
- *   tickets     — a defect escalated into work someone owes an answer on
+ *   tickets     — a defect turned into work someone owes an answer on
  *   ticketEvents— append-only, hash-chained audit trail per ticket
  *   authorities — who owns which stretch of road
  *   contractors — who gets assigned the repair
@@ -69,7 +69,7 @@ export interface UploadDoc {
 
 /**
  * Who owns a road. Levels come from lib/types.ts and form a chain: a ticket
- * nobody acknowledges escalates up it.
+ * nobody is answering can be forwarded up it by hand.
  */
 export interface AuthorityDoc {
   _id: string; // slug, e.g. "gmc-ward-32"
@@ -99,7 +99,7 @@ export interface ContractorDoc {
  * independent sightings back it up.
  */
 export interface TicketDoc {
-  _id: string; // human-readable, e.g. "RS-2026-0007"
+  _id: string; // human-readable, e.g. "HJ-2026-0007"
   defectIds: string[];
   damageClass: DamageClass;
   severity: Severity;
@@ -117,11 +117,9 @@ export interface TicketDoc {
   level: AuthorityLevel;
   authorityId: string | null;
   contractorId: string | null;
-  slaAckDue: Date;
-  slaFixDue: Date;
   /** Every severity this ticket has held, in order. A rising list is a road getting worse. */
   severityHistory: { severity: Severity; at: Date }[];
-  /** How many times it climbed the chain, and when it last did. */
+  /** How many times somebody forwarded it up the chain, and when they last did. */
   escalationCount: number;
   lastEscalatedAt: Date | null;
   acknowledgedAt: Date | null;
@@ -159,10 +157,10 @@ export interface CounterDoc {
   seq: number;
 }
 
-const DB_NAME = process.env.MONGODB_DB ?? 'roadsense';
+const DB_NAME = process.env.MONGODB_DB ?? 'happyjourney';
 
 type Cache = { client: MongoClient; db: Db; indexed: Promise<void> };
-const globalCache = globalThis as unknown as { _roadsenseMongo?: Cache };
+const globalCache = globalThis as unknown as { _happyjourneyMongo?: Cache };
 
 export function isConfigured() {
   return Boolean(process.env.MONGODB_URI);
@@ -172,14 +170,14 @@ export async function getDb(): Promise<Db> {
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error('MONGODB_URI is not set — add it to .env.local');
 
-  if (!globalCache._roadsenseMongo) {
+  if (!globalCache._happyjourneyMongo) {
     const client = new MongoClient(uri, { serverSelectionTimeoutMS: 8000 });
     const db = client.db(DB_NAME);
-    globalCache._roadsenseMongo = { client, db, indexed: ensureIndexes(db) };
+    globalCache._happyjourneyMongo = { client, db, indexed: ensureIndexes(db) };
     await client.connect();
   }
-  await globalCache._roadsenseMongo.indexed;
-  return globalCache._roadsenseMongo.db;
+  await globalCache._happyjourneyMongo.indexed;
+  return globalCache._happyjourneyMongo.db;
 }
 
 async function ensureIndexes(db: Db) {
@@ -194,7 +192,7 @@ async function ensureIndexes(db: Db) {
     db.collection('uploads').createIndex({ createdAt: -1 }),
     db.collection('uploads').createIndex({ deviceId: 1, createdAt: -1 }),
     db.collection('tickets').createIndex({ location: '2dsphere' }, { sparse: true }),
-    db.collection('tickets').createIndex({ state: 1, slaFixDue: 1 }),
+    db.collection('tickets').createIndex({ state: 1, createdAt: -1 }),
     db.collection('tickets').createIndex({ authorityId: 1, state: 1 }),
     db.collection('tickets').createIndex({ reportedBy: 1, createdAt: -1 }),
     db.collection('tickets').createIndex({ followers: 1 }),

@@ -76,10 +76,8 @@ export interface Ticket {
   level: AuthorityLevel;
   authorityId: string;
   contractorId?: string;
-  slaAckDue: string;
-  slaFixDue: string;
-  daysOver?: number;
-  daysLeft?: number;
+  /** How many times somebody forwarded it up the chain. */
+  escalationCount?: number;
   createdAt: string;
   updatedAt: string;
   estimate?: { areaM2: number; ratePerM2: number; total: number; warrantyUntil: string };
@@ -130,7 +128,7 @@ export interface Ward {
   name: string;
   score: number;
   open: number;
-  breached: number;
+  escalated: number;
 }
 
 export interface ForecastSegment {

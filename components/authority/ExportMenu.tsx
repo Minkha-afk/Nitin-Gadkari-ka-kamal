@@ -17,7 +17,7 @@ import { IconDownload } from '@/components/chrome/Icons';
 import { color } from '@/lib/tokens';
 
 const EXPORTS = [
-  { kind: 'tickets', label: 'Tickets', note: 'this jurisdiction, with SLA standing' },
+  { kind: 'tickets', label: 'Tickets', note: 'this jurisdiction, with how long each has been open' },
   { kind: 'defects', label: 'Detections', note: 'every stored defect, with coordinates' },
   { kind: 'events', label: 'Audit trail', note: 'every change, with hashes' },
   { kind: 'uploads', label: 'Uploads', note: 'one row per analysed file' },
@@ -73,7 +73,7 @@ export default function ExportMenu({ scopeLabel }: { scopeLabel?: string }) {
               >
                 <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600 }}>{e.label}</span>
                 <span className="tiny" style={{ display: 'block', color: color.a.dim, marginTop: 2 }}>
-                  {e.kind === 'tickets' && scopeLabel ? `${scopeLabel} · with SLA standing` : e.note}
+                  {e.kind === 'tickets' && scopeLabel ? `${scopeLabel} · with how long each has been open` : e.note}
                 </span>
               </a>
             ))}

@@ -13,7 +13,7 @@
 import { NextRequest } from 'next/server';
 import { getAuthorityTree } from '@/lib/authority';
 import { authorities, isConfigured, type AuthorityDoc } from '@/lib/mongo';
-import { ESCALATION } from '@/lib/sla';
+import { ESCALATION } from '@/lib/ladder';
 import type { AuthorityLevel } from '@/lib/types';
 
 export const runtime = 'nodejs';

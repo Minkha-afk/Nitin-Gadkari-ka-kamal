@@ -8,7 +8,7 @@ import JurisdictionTree from '@/components/chrome/JurisdictionTree';
 import { Main, PageHead } from '@/components/system/Page';
 import { Bar, Chip, KpiRow, KpiTile, Panel, PanelBody, PanelHead } from '@/components/system';
 import ExportMenu from './ExportMenu';
-import { NotConfigured, STATE_LABEL, STATE_TONE, SlaCell } from './bits';
+import { AgeCell, NotConfigured, STATE_LABEL, STATE_TONE } from './bits';
 import type { ConsoleData } from '@/lib/authority';
 import { color, severityColor, severityTone, toneColor } from '@/lib/tokens';
 import { CLASS_LABEL } from '@/lib/types';
@@ -70,7 +70,7 @@ export default function ConsoleClient({ data }: { data: ConsoleData }) {
 
         <KpiRow>
           <KpiTile label="Open" value={kpis.open} sub="not yet repaired" />
-          <KpiTile label="Past deadline" value={kpis.breached} tone={kpis.breached ? 'red' : undefined} sub="SLA breached" />
+          <KpiTile label="Forwarded up" value={kpis.escalated} tone={kpis.escalated ? 'red' : undefined} sub="sent to a higher authority" />
           <KpiTile label="Awaiting verification" value={kpis.awaitingVerification} tone={kpis.awaitingVerification ? 'amber' : undefined} sub="contractor says done" />
           <KpiTile label="Settled" value={kpis.closed} tone={kpis.closed ? 'green' : undefined} sub="verified or closed" />
           <KpiTile label="Unowned" value={kpis.unowned} tone={kpis.unowned ? 'amber' : undefined} sub="no jurisdiction covers them" />
@@ -109,7 +109,7 @@ export default function ConsoleClient({ data }: { data: ConsoleData }) {
           </Panel>
 
           <Panel className="rs-fixed" style={{ width: 372, flexShrink: 0 }}>
-            <PanelHead title="Needs you first" sub="Soonest deadline, over-deadline first" />
+            <PanelHead title="Needs you first" sub="Forwarded up first, then longest open" />
             <PanelBody style={{ paddingTop: 4 }}>
               {needsYou.length ? (
                 needsYou.map((t, i) => (
@@ -127,7 +127,7 @@ export default function ConsoleClient({ data }: { data: ConsoleData }) {
                     }}
                   >
                     <span style={{ width: 62, flexShrink: 0 }}>
-                      <SlaCell row={t} />
+                      <AgeCell row={t} />
                     </span>
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: 'block', fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

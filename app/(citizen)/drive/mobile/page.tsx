@@ -55,8 +55,8 @@ function Phone({
 const LADDER = [
   { label: 'Reported by 12 vehicles', when: '24 Aug', tone: color.green },
   { label: 'Ticket raised with Ward 32', when: '24 Aug', tone: color.green },
-  { label: 'Not acknowledged in 2 days', when: '26 Aug', tone: color.red, red: true },
-  { label: 'Escalated to Executive Engineer', when: '26 Aug', tone: color.green },
+  { label: 'Still not acknowledged by Ward 32', when: '26 Aug', tone: color.red, red: true },
+  { label: 'Forwarded to Executive Engineer', when: '26 Aug', tone: color.green },
   { label: 'Contractor assigned', when: 'pending', tone: color.amber, bold: true },
   { label: 'Repaired and verified by traffic', when: 'pending', tone: '#A3A3A3' },
 ];

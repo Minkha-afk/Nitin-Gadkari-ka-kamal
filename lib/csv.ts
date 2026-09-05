@@ -38,7 +38,7 @@ export const BOM = '﻿';
 
 export function csvFilename(kind: string, suffix?: string) {
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-  return `roadsense-${kind}${suffix ? `-${suffix}` : ''}-${stamp}.csv`;
+  return `happyjourney-${kind}${suffix ? `-${suffix}` : ''}-${stamp}.csv`;
 }
 
 /** Browser-side download. No-op on the server. */

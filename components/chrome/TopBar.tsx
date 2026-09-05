@@ -200,13 +200,13 @@ function Option({
 }
 
 function buildTrail(nodes: { id: string; name: string; parentId: string | null }[], scope: string | null, label: string) {
-  if (!scope || scope === 'all') return ['RoadSense', 'All jurisdictions'];
-  if (scope === 'unassigned') return ['RoadSense', 'Unassigned'];
+  if (!scope || scope === 'all') return ['HappyJourney', 'All jurisdictions'];
+  if (scope === 'unassigned') return ['HappyJourney', 'Unassigned'];
   const trail: string[] = [];
   let cur = nodes.find((n) => n.id === scope);
   while (cur) {
     trail.unshift(cur.name);
     cur = cur.parentId ? nodes.find((n) => n.id === cur!.parentId) : undefined;
   }
-  return trail.length ? trail : ['RoadSense', label];
+  return trail.length ? trail : ['HappyJourney', label];
 }

@@ -11,7 +11,7 @@ import { bboxOf, pathLength, pointToPath, type LatLng } from './geo';
 import { defects, type DefectDoc } from './mongo';
 import type { DamageClass, Severity } from './types';
 
-const UA = 'RoadSense/0.1 (road damage reporting)';
+const UA = 'HappyJourney/0.1 (road damage reporting)';
 const OSRM = (process.env.OSRM_BASE ?? 'https://router.project-osrm.org').replace(/\/+$/, '');
 export const DEFAULT_CORRIDOR_M = 35;
 

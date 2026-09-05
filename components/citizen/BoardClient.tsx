@@ -5,8 +5,8 @@
  *
  * A league table, so it should read like one: rank, name, and the single
  * number that decides the ranking, at a size you can read across a room.
- * Breached deadlines lead, because that is the number an office would rather
- * you did not see.
+ * Tickets forwarded over an office's head lead, because that is the number
+ * they would rather you did not see.
  */
 
 import React from 'react';
@@ -33,11 +33,11 @@ export default function BoardClient({
   const totals = rows.reduce(
     (a, r) => ({
       open: a.open + r.open,
-      breached: a.breached + r.breached,
+      escalated: a.escalated + r.escalated,
       fixed: a.fixed + r.fixed,
       reopened: a.reopened + r.reopened,
     }),
-    { open: 0, breached: 0, fixed: 0, reopened: 0 },
+    { open: 0, escalated: 0, fixed: 0, reopened: 0 },
   );
 
   return (
@@ -48,8 +48,8 @@ export default function BoardClient({
           Who is fixing what.
         </h1>
         <p className="lede" style={{ marginTop: 18 }}>
-          Every office that owns road repairs here, measured against deadlines they are held to — not
-          against their own account of how it is going.
+          Every office that owns road repairs here, measured on what is still open, what had to be
+          sent over their head, and what came back — not on their own account of how it is going.
         </p>
       </section>
 
@@ -66,10 +66,10 @@ export default function BoardClient({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 30 }}>
                 <Figure value={totals.open} label="open right now" onInk />
                 <Figure
-                  value={totals.breached}
-                  label="past deadline"
+                  value={totals.escalated}
+                  label="forwarded up"
                   onInk
-                  tint={totals.breached ? '#FDA29B' : undefined}
+                  tint={totals.escalated ? '#FDA29B' : undefined}
                 />
                 <Figure value={totals.fixed} label="verified fixed" onInk tint={totals.fixed ? '#7FE0AC' : undefined} />
                 <Figure
@@ -83,7 +83,7 @@ export default function BoardClient({
           </section>
 
           <section className="shell stack-md">
-            <SectionHead kicker="The table" title="Ranked by broken promises" />
+            <SectionHead kicker="The table" title="Ranked by what went over their head" />
             <div style={{ height: 6 }} />
             {rows.map((r, i) => (
               <article
@@ -108,9 +108,9 @@ export default function BoardClient({
                 <div style={{ display: 'flex', gap: 34, flexWrap: 'wrap' }}>
                   <Figure value={r.open} label="open" />
                   <Figure
-                    value={r.breached}
-                    label="past deadline"
-                    tint={r.breached ? SEV.critical.ink : undefined}
+                    value={r.escalated}
+                    label="forwarded up"
+                    tint={r.escalated ? SEV.critical.ink : undefined}
                   />
                   <Figure value={r.fixed} label="fixed" tint={r.fixed ? SEV.good.ink : undefined} />
                   <Figure

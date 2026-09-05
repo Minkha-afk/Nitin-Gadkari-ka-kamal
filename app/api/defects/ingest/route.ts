@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
           updateOne: {
             filter: { _id: fields._id },
             // Re-analysing a clip refreshes the defect but keeps the date it
-            // was first reported — that is what the SLA clock runs on.
+            // was first reported — that is how long it has been on record.
             update: { $set: fields, $setOnInsert: { createdAt } },
             upsert: true,
           },
@@ -60,8 +60,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Severe damage opens a ticket without anyone having to ask. Anything
-    // milder is stored and stays available to report by hand.
+    // Severe damage opens a ticket with the responsible authority immediately,
+    // with no waiting period. Anything milder is stored and stays available to
+    // report by hand.
     const opened: string[] = [];
     const updated: string[] = [];
     for (const doc of docs) {

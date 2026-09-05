@@ -50,7 +50,7 @@ export default function TopNav() {
           className="shell"
           style={{ height: 66, display: 'flex', alignItems: 'center', gap: 26 }}
         >
-          <Link href="/" aria-label="RoadSense home" style={{ display: 'flex' }}>
+          <Link href="/" aria-label="HappyJourney home" style={{ display: 'flex' }}>
             <Brand theme="light" />
           </Link>
 

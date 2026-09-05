@@ -273,9 +273,10 @@ export function KpiRow({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ── SlaPlate ──────────────────────────────────────────────────────── */
+/* ── StatPlate ─────────────────────────────────────────────────────── */
 
-export function SlaPlate({
+/** A boxed number with its unit under it — an age, a count, a score. */
+export function StatPlate({
   value,
   unit,
   tone = 'neutral',

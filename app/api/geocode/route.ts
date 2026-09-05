@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const UA = 'RoadSense/0.1 (road damage reporting)';
+const UA = 'HappyJourney/0.1 (road damage reporting)';
 
 export interface Place {
   label: string;

@@ -24,7 +24,8 @@ import {
   type TicketDoc,
   type TicketEventDoc,
 } from './mongo';
-import { slaStanding, type Urgency } from './sla';
+import { ticketStanding, type Urgency } from './standing';
+import { nextLevel } from './ladder';
 import { verifyChain } from './tickets';
 import type { AuthorityLevel, DamageClass, Severity, TicketState } from './types';
 
@@ -156,18 +157,20 @@ export interface TicketRow {
   authorityId: string | null;
   contractorId: string | null;
   passes: number;
+  /** How many times somebody forwarded it up the chain. */
   escalationCount: number;
-  /** Ready to print, e.g. "40 min left" or "3 h over". */
-  dueLabel: string;
+  escalated: boolean;
   urgency: Urgency;
-  breached: boolean;
-  hoursOver?: number;
-  hoursLeft?: number;
-  daysOver?: number;
-  daysLeft?: number;
+  /** Ready to print, e.g. "40 min" or "3 d". */
+  ageValue: string;
+  /** Ready to print on its own, e.g. "3 d open". */
+  ageLabel: string;
+  ageHours: number;
+  ageDays: number;
   createdAt: string;
-  slaAckDue: string;
-  slaFixDue: string;
+  lastEscalatedAt: string | null;
+  /** True when nobody is above the level holding it. */
+  atTopOfChain: boolean;
 }
 
 export function toRow(t: TicketDoc): TicketRow {
@@ -187,10 +190,10 @@ export function toRow(t: TicketDoc): TicketRow {
     contractorId: t.contractorId,
     passes: t.passes,
     escalationCount: t.escalationCount ?? 0,
-    ...slaStanding(t),
+    ...ticketStanding(t),
     createdAt: new Date(t.createdAt).toISOString(),
-    slaAckDue: new Date(t.slaAckDue).toISOString(),
-    slaFixDue: new Date(t.slaFixDue).toISOString(),
+    lastEscalatedAt: t.lastEscalatedAt ? new Date(t.lastEscalatedAt).toISOString() : null,
+    atTopOfChain: nextLevel(t.level) === null,
   };
 }
 
@@ -209,7 +212,7 @@ export interface ConsoleData {
   configured: boolean;
   scope: string | null;
   scopeLabel: string;
-  kpis: { open: number; breached: number; awaitingVerification: number; closed: number; unowned: number };
+  kpis: { open: number; escalated: number; awaitingVerification: number; closed: number; unowned: number };
   byState: { state: TicketState; count: number }[];
   bySeverity: { severity: Severity; count: number }[];
   needsYou: TicketRow[];
@@ -224,7 +227,7 @@ export async function getConsole(scope: string | null): Promise<ConsoleData> {
     configured: false,
     scope,
     scopeLabel,
-    kpis: { open: 0, breached: 0, awaitingVerification: 0, closed: 0, unowned: 0 },
+    kpis: { open: 0, escalated: 0, awaitingVerification: 0, closed: 0, unowned: 0 },
     byState: [],
     bySeverity: [],
     needsYou: [],
@@ -237,12 +240,11 @@ export async function getConsole(scope: string | null): Promise<ConsoleData> {
   try {
     const filter = await scopeFilter(scope);
     const [ticketCol, defectCol] = await Promise.all([tickets(), defects()]);
-    const now = new Date();
 
-    const [open, breached, awaiting, closed, unowned, stateRows, sevRows, needsYou, mapRows, incomingRows, totalDefects] =
+    const [open, escalated, awaiting, closed, unowned, stateRows, sevRows, needsYou, mapRows, incomingRows, totalDefects] =
       await Promise.all([
         ticketCol.countDocuments({ ...filter, state: { $in: OPEN } }),
-        ticketCol.countDocuments({ ...filter, state: { $in: OPEN }, slaFixDue: { $lt: now } }),
+        ticketCol.countDocuments({ ...filter, state: { $in: OPEN }, escalationCount: { $gt: 0 } }),
         ticketCol.countDocuments({ ...filter, state: 'repaired' }),
         ticketCol.countDocuments({ ...filter, state: { $in: ['verified', 'closed'] } }),
         ticketCol.countDocuments({ authorityId: null, state: { $in: OPEN } }),
@@ -258,10 +260,10 @@ export async function getConsole(scope: string | null): Promise<ConsoleData> {
             { $group: { _id: '$severity', count: { $sum: 1 } } },
           ])
           .toArray(),
-        // Worst first: over deadline, then soonest due.
+        // Worst first: the ones that have climbed the chain, then the oldest.
         ticketCol
           .find({ ...filter, state: { $in: OPEN } })
-          .sort({ slaFixDue: 1 })
+          .sort({ escalationCount: -1, createdAt: 1 })
           .limit(8)
           .toArray(),
         ticketCol
@@ -283,7 +285,7 @@ export async function getConsole(scope: string | null): Promise<ConsoleData> {
       configured: true,
       scope,
       scopeLabel,
-      kpis: { open, breached, awaitingVerification: awaiting, closed, unowned },
+      kpis: { open, escalated, awaitingVerification: awaiting, closed, unowned },
       byState: stateOrder.filter((s) => stateMap.get(s)).map((s) => ({ state: s, count: stateMap.get(s)! })),
       bySeverity: sevOrder.filter((s) => sevMap.get(s)).map((s) => ({ severity: s, count: sevMap.get(s)! })),
       needsYou: needsYou.map(toRow),
@@ -312,7 +314,7 @@ function toIncoming(d: DefectDoc): IncomingRow {
 export interface QueueFilters {
   state?: TicketState[];
   severity?: Severity[];
-  breachedOnly?: boolean;
+  escalatedOnly?: boolean;
 }
 
 export async function getQueue(scope: string | null, filters: QueueFilters = {}, limit = 200) {
@@ -321,13 +323,13 @@ export async function getQueue(scope: string | null, filters: QueueFilters = {},
     const filter: Record<string, unknown> = { ...(await scopeFilter(scope)) };
     if (filters.state?.length) filter.state = { $in: filters.state };
     if (filters.severity?.length) filter.severity = { $in: filters.severity };
-    if (filters.breachedOnly) {
+    if (filters.escalatedOnly) {
       filter.state = { $in: OPEN };
-      filter.slaFixDue = { $lt: new Date() };
+      filter.escalationCount = { $gt: 0 };
     }
     const col = await tickets();
     const [rows, total] = await Promise.all([
-      col.find(filter).sort({ slaFixDue: 1 }).limit(limit).toArray(),
+      col.find(filter).sort({ escalationCount: -1, createdAt: -1 }).limit(limit).toArray(),
       col.countDocuments(filter),
     ]);
     return { configured: true, rows: rows.map(toRow), total };
@@ -436,7 +438,7 @@ export interface BoardRow {
   name: string;
   level: AuthorityLevel;
   open: number;
-  breached: number;
+  escalated: number;
   fixed: number;
   reopened: number;
   medianFixDays: number | null;
@@ -447,7 +449,6 @@ export async function getBoard(): Promise<{ configured: boolean; rows: BoardRow[
   try {
     const [authCol, ticketCol] = await Promise.all([authorities(), tickets()]);
     const [auths, all] = await Promise.all([authCol.find({}).toArray(), ticketCol.find({}).toArray()]);
-    const now = Date.now();
 
     const rows = auths.map((a) => {
       const mine = all.filter((t) => t.authorityId === a._id);
@@ -460,7 +461,7 @@ export async function getBoard(): Promise<{ configured: boolean; rows: BoardRow[
         name: a.name,
         level: a.level,
         open: mine.filter((t) => OPEN.includes(t.state)).length,
-        breached: mine.filter((t) => OPEN.includes(t.state) && new Date(t.slaFixDue).getTime() < now).length,
+        escalated: mine.filter((t) => OPEN.includes(t.state) && (t.escalationCount ?? 0) > 0).length,
         fixed: mine.filter((t) => ['verified', 'closed'].includes(t.state)).length,
         reopened: mine.filter((t) => t.state === 'reopened').length,
         medianFixDays: days.length
@@ -476,7 +477,7 @@ export async function getBoard(): Promise<{ configured: boolean; rows: BoardRow[
 
     return {
       configured: true,
-      rows: rows.sort((a, b) => b.breached - a.breached || b.open - a.open),
+      rows: rows.sort((a, b) => b.escalated - a.escalated || b.open - a.open),
       unassigned: all.filter((t) => !t.authorityId && OPEN.includes(t.state)).length,
     };
   } catch {

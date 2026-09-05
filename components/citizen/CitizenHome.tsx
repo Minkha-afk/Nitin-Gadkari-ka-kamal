@@ -195,7 +195,7 @@ export default function CitizenHome({ overview }: { overview: Overview }) {
               A road nobody films is a road nobody fixes.
             </h2>
             <p className="copy" style={{ marginTop: 14, color: 'rgba(247,245,242,0.55)', maxWidth: '48ch' }}>
-              Severe damage you send in opens a ticket with a deadline the authority is held to.
+              Severe damage you send in opens a ticket with the responsible authority straight away.
             </p>
           </div>
           <Pill variant="mark" href="/upload" style={{ height: 54, padding: '0 30px' }}>

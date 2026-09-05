@@ -2,38 +2,33 @@
  * GET  /api/tickets  — list, filtered
  * POST /api/tickets  — open one by hand from defect ids
  *
- * Filters: state, severity, authorityId, mine=1 (this device), breached=1,
+ * Filters: state, severity, authorityId, mine=1 (this device), escalated=1,
  * following=1, limit.
  */
 
 import { NextRequest } from 'next/server';
 import { deviceId } from '@/lib/device';
 import { defects, isConfigured, tickets, type TicketDoc } from '@/lib/mongo';
-import { slaStanding } from '@/lib/sla';
+import { ticketStanding } from '@/lib/standing';
 import { ticketForDefect } from '@/lib/tickets';
 import type { Severity, TicketState } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export interface TicketView extends Omit<TicketDoc, 'slaAckDue' | 'slaFixDue' | 'createdAt' | 'updatedAt'> {
-  slaAckDue: string;
-  slaFixDue: string;
+export interface TicketView extends Omit<TicketDoc, 'createdAt' | 'updatedAt'> {
   createdAt: string;
   updatedAt: string;
-  daysOver?: number;
-  daysLeft?: number;
-  breached: boolean;
+  escalated: boolean;
+  ageLabel: string;
   mine: boolean;
   following: boolean;
 }
 
 export function toView(t: TicketDoc, device: string | null): TicketView {
-  const standing = slaStanding(t);
+  const standing = ticketStanding(t);
   return {
     ...t,
-    slaAckDue: new Date(t.slaAckDue).toISOString(),
-    slaFixDue: new Date(t.slaFixDue).toISOString(),
     createdAt: new Date(t.createdAt).toISOString(),
     updatedAt: new Date(t.updatedAt).toISOString(),
     acknowledgedAt: t.acknowledgedAt ? new Date(t.acknowledgedAt) : null,
@@ -61,8 +56,8 @@ export async function GET(req: NextRequest) {
   if (p.get('authorityId')) filter.authorityId = p.get('authorityId');
   if (p.get('mine') === '1') filter.reportedBy = device ?? '__none__';
   if (p.get('following') === '1') filter.followers = device ?? '__none__';
-  if (p.get('breached') === '1') {
-    filter.slaFixDue = { $lt: new Date() };
+  if (p.get('escalated') === '1') {
+    filter.escalationCount = { $gt: 0 };
     filter.state = { $nin: ['repaired', 'verified', 'closed'] };
   }
 

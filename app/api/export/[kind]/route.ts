@@ -32,7 +32,7 @@ import {
   type TicketEventDoc,
   type UploadDoc,
 } from '@/lib/mongo';
-import { slaStanding } from '@/lib/sla';
+import { ticketStanding } from '@/lib/standing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,12 +51,10 @@ const TICKET_COLUMNS: Column<TicketDoc>[] = [
   { key: 'authority_id', get: (t) => t.authorityId },
   { key: 'sitting_with', get: (t) => t.level },
   { key: 'contractor_id', get: (t) => t.contractorId },
-  { key: 'escalation_count', get: (t) => t.escalationCount ?? 0 },
+  { key: 'forwarded_up_count', get: (t) => t.escalationCount ?? 0 },
+  { key: 'last_forwarded_at', get: (t) => t.lastEscalatedAt },
   { key: 'opened_at', get: (t) => t.createdAt },
-  { key: 'acknowledge_due', get: (t) => t.slaAckDue },
-  { key: 'fix_due', get: (t) => t.slaFixDue },
-  { key: 'sla_standing', get: (t) => slaStanding(t).dueLabel },
-  { key: 'breached', get: (t) => slaStanding(t).breached },
+  { key: 'age_open', get: (t) => ticketStanding(t).ageLabel },
   { key: 'acknowledged_at', get: (t) => t.acknowledgedAt },
   { key: 'assigned_at', get: (t) => t.assignedAt },
   { key: 'repaired_at', get: (t) => t.repairedAt },

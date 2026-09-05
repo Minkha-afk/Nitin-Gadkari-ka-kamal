@@ -21,10 +21,13 @@ import {
   type TicketDoc,
   type TicketEventDoc,
 } from './mongo';
-import { AUTO_TICKET, dueDates, nextLevel, SLA } from './sla';
+import { AUTO_TICKET, ESCALATION, nextLevel } from './ladder';
 
 /** Two sightings this close, of the same damage class, are one defect. */
 const CLUSTER_RADIUS_M = 25;
+
+/** States where the work is done and there is nothing left to forward. */
+const SETTLED: TicketState[] = ['repaired', 'verified', 'closed'];
 
 const RANK: Record<Severity, number> = { good: 0, low: 1, medium: 2, high: 3, critical: 4 };
 
@@ -118,8 +121,7 @@ export async function authorityFor(lat: number | null, lng: number | null) {
     .find({ area: { $geoIntersects: { $geometry: { type: 'Point', coordinates: [lng, lat] } } } })
     .toArray();
   if (!hits.length) return null;
-  const order: AuthorityLevel[] = ['ward_engineer', 'executive_engineer', 'commissioner', 'state_department'];
-  hits.sort((a, b) => order.indexOf(a.level) - order.indexOf(b.level));
+  hits.sort((a, b) => ESCALATION.indexOf(a.level) - ESCALATION.indexOf(b.level));
   return hits[0];
 }
 
@@ -128,7 +130,7 @@ export async function authorityFor(lat: number | null, lng: number | null) {
 export async function mintTicketId(now = new Date()) {
   const year = now.getUTCFullYear();
   const n = await nextSeq(`ticket-${year}`);
-  return `RS-${year}-${String(n).padStart(4, '0')}`;
+  return `HJ-${year}-${String(n).padStart(4, '0')}`;
 }
 
 export function shouldAutoTicket(severity: Severity) {
@@ -158,10 +160,9 @@ export async function ticketForDefect(defect: DefectDoc, actor = 'detector') {
     if (nearby) {
       if (nearby.defectIds.includes(defect._id)) return { ticket: nearby, created: false };
 
-      // A worse sighting escalates the ticket and resets the fix clock.
+      // A worse sighting raises the ticket's severity; it never lowers it.
       const worse = RANK[defect.severity] > RANK[nearby.severity];
       const severity = worse ? defect.severity : nearby.severity;
-      const due = worse ? dueDates(severity, now) : { slaFixDue: nearby.slaFixDue, slaAckDue: nearby.slaAckDue };
 
       await col.updateOne(
         { _id: nearby._id },
@@ -171,7 +172,6 @@ export async function ticketForDefect(defect: DefectDoc, actor = 'detector') {
             severityLabel: worse ? defect.severityLabel : nearby.severityLabel,
             confidence: Math.max(nearby.confidence, defect.confidence),
             address: nearby.address ?? defect.address,
-            ...due,
             updatedAt: now,
           },
           $inc: { passes: 1 },
@@ -199,7 +199,6 @@ export async function ticketForDefect(defect: DefectDoc, actor = 'detector') {
   }
 
   const authority = await authorityFor(defect.lat, defect.lng);
-  const { slaAckDue, slaFixDue } = dueDates(defect.severity, now);
   const doc: TicketDoc = {
     _id: await mintTicketId(now),
     defectIds: [defect._id],
@@ -218,8 +217,6 @@ export async function ticketForDefect(defect: DefectDoc, actor = 'detector') {
     level: authority?.level ?? 'ward_engineer',
     authorityId: authority?._id ?? null,
     contractorId: null,
-    slaAckDue,
-    slaFixDue,
     severityHistory: [{ severity: defect.severity, at: now }],
     escalationCount: 0,
     lastEscalatedAt: null,
@@ -246,6 +243,7 @@ export async function ticketForDefect(defect: DefectDoc, actor = 'detector') {
 }
 
 /* ── moving a ticket along ─────────────────────────────────────────── */
+
 
 export async function transition(
   ticketId: string,
@@ -277,12 +275,8 @@ export async function transition(
   if (action === 'verify') stamps.verifiedAt = now;
   if (action === 'close') stamps.closedAt = now;
   if (action === 'reopen') {
-    // The damage came back: a fresh clock, and the repair stamps no longer hold.
-    Object.assign(stamps, dueDates(ticket.severity, now), {
-      repairedAt: null,
-      verifiedAt: null,
-      closedAt: null,
-    });
+    // The damage came back, so the repair stamps no longer hold.
+    Object.assign(stamps, { repairedAt: null, verifiedAt: null, closedAt: null });
   }
 
   await col.updateOne({ _id: ticketId }, { $set: stamps });
@@ -291,46 +285,65 @@ export async function transition(
 }
 
 /**
- * Anything past its acknowledge deadline and still unacknowledged moves one
- * step up the chain.
+ * Forward a ticket to the level above the one holding it.
  *
- * Escalating also restarts the acknowledge clock, so the level it just landed
- * on gets its own window to respond. That is what makes this safe to run on a
- * tight cron: a second run a minute later finds nothing newly overdue, rather
- * than marching the same ticket to the state department in four calls.
+ * This is the only way a ticket climbs. It is a deliberate act by a named
+ * person, recorded in the audit chain like every other change, rather than a
+ * timer firing in the background — nobody can later claim the system escalated
+ * it on its own.
+ *
+ * The ticket follows the authority tree where there is one: if the office
+ * currently holding it has a registered parent, ownership moves there too, so
+ * "forwarded" means a different desk, not just a different label.
  */
-export async function escalateOverdue(now = new Date()) {
+export async function forwardUp(
+  ticketId: string,
+  actor: string,
+  opts: { note?: string | null } = {},
+) {
   const col = await tickets();
-  const stale = await col
-    .find({ state: { $in: ['new', 'reopened'] }, slaAckDue: { $lt: now } })
-    .limit(200)
-    .toArray();
+  const ticket = await col.findOne({ _id: ticketId });
+  if (!ticket) throw new Error(`no ticket ${ticketId}`);
 
-  const moved: { id: string; from: AuthorityLevel; to: AuthorityLevel }[] = [];
-  for (const t of stale) {
-    const to = nextLevel(t.level);
-    if (!to) continue;
-    const ackHours = (SLA[t.severity] ?? SLA.low!).ackHours;
-    await col.updateOne(
-      { _id: t._id },
-      {
-        $set: {
-          level: to,
-          slaAckDue: new Date(now.getTime() + ackHours * 3_600_000),
-          lastEscalatedAt: now,
-          updatedAt: now,
-        },
-        $inc: { escalationCount: 1 },
-      },
-    );
-    await appendEvent(
-      t._id,
-      'escalated',
-      'system',
-      `Not acknowledged by the deadline — escalated from ${t.level} to ${to}`,
-      'bad',
-    );
-    moved.push({ id: t._id, from: t.level, to });
+  const to = nextLevel(ticket.level);
+  if (!to) throw new Error('this ticket is already with the state department — there is no level above it');
+  if (SETTLED.includes(ticket.state)) {
+    throw new Error(`cannot forward a ticket that is ${ticket.state} — reopen it first`);
   }
-  return moved;
+
+  const authorityId = await parentAuthorityOf(ticket.authorityId, to);
+  const now = new Date();
+
+  await col.updateOne(
+    { _id: ticketId },
+    {
+      $set: { level: to, authorityId, lastEscalatedAt: now, updatedAt: now },
+      $inc: { escalationCount: 1 },
+    },
+  );
+  await appendEvent(
+    ticketId,
+    'forwarded',
+    actor,
+    opts.note?.trim() || `Forwarded up from ${ticket.level} to ${to}`,
+    'warn',
+  );
+  return (await col.findOne({ _id: ticketId }))!;
+}
+
+/**
+ * The office above this one, when the tree knows of one. Falls back to the
+ * current owner rather than to nobody: losing the assignment on the way up
+ * would make the ticket harder to chase, not easier.
+ */
+async function parentAuthorityOf(authorityId: string | null, to: AuthorityLevel) {
+  if (!authorityId) return null;
+  const col = await authorities();
+  const current = await col.findOne({ _id: authorityId });
+  if (current?.parentId) {
+    const parent = await col.findOne({ _id: current.parentId });
+    if (parent) return parent._id;
+  }
+  const anyAtLevel = await col.findOne({ level: to });
+  return anyAtLevel?._id ?? authorityId;
 }

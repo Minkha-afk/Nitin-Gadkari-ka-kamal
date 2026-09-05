@@ -4,8 +4,8 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Main, PageHead } from '@/components/system/Page';
-import { Btn, Chip, Inset, Panel, PanelBody, PanelHead, SlaPlate } from '@/components/system';
-import { LEVEL_LABEL, STATE_LABEL, STATE_TONE, slaTone } from './bits';
+import { Btn, Chip, Inset, Panel, PanelBody, PanelHead, StatPlate } from '@/components/system';
+import { LEVEL_LABEL, STATE_LABEL, STATE_TONE, standingTone } from './bits';
 import type { TicketDetail } from '@/lib/authority';
 import type { TicketAction } from '@/lib/tickets';
 import { color, severityTone, toneColor } from '@/lib/tokens';
@@ -35,6 +35,10 @@ export default function TicketDetailClient({
   const [contractorId, setContractorId] = React.useState(contractorOptions[0]?._id ?? '');
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [forwarded, setForwarded] = React.useState<string | null>(null);
+
+  const settled = ['repaired', 'verified', 'closed'].includes(ticket.state);
+  const canForward = !ticket.atTopOfChain && !settled;
 
   async function run(action: TicketAction) {
     if (!actor.trim()) {
@@ -65,6 +69,32 @@ export default function TicketDetailClient({
     }
   }
 
+  async function forward() {
+    if (!actor.trim()) {
+      setError('Say who is doing this — every change is signed into the audit trail.');
+      return;
+    }
+    setBusy('forward');
+    setError(null);
+    setForwarded(null);
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}/forward`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ actor: actor.trim(), note: note.trim() || null }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `failed (${res.status})`);
+      setNote('');
+      setForwarded(`Now with the ${(LEVEL_LABEL[body.level] ?? body.level).toLowerCase()}.`);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <Main wide>
       <PageHead
@@ -80,10 +110,10 @@ export default function TicketDetailClient({
               {ticket.severityLabel}
             </Chip>
             <Chip tone={STATE_TONE[ticket.state]}>{STATE_LABEL[ticket.state]}</Chip>
-            <SlaPlate
-              value={ticket.dueLabel.split(' ').slice(0, -1).join(' ')}
-              unit={ticket.dueLabel.split(' ').slice(-1)[0] === 'left' ? 'left' : 'over'}
-              tone={slaTone(ticket)}
+            <StatPlate
+              value={ticket.ageValue}
+              unit={ticket.urgency === 'settled' ? 'to settle' : 'open'}
+              tone={standingTone(ticket)}
             />
           </>
         }
@@ -213,6 +243,22 @@ export default function TicketDetailClient({
                 ))}
               </div>
 
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${color.a.lineSoft}` }}>
+                <Btn small onClick={forward} disabled={busy !== null || !canForward}>
+                  {busy === 'forward' ? 'Forwarding…' : 'Forward to higher ups'}
+                </Btn>
+                <p className="tiny" style={{ color: color.a.dim, marginTop: 7, lineHeight: 1.5 }}>
+                  {ticket.atTopOfChain
+                    ? 'Already with the state department — there is no level above it.'
+                    : settled
+                      ? 'The work is done. Reopen it before sending it up.'
+                      : `Hands it to whoever is above the ${(LEVEL_LABEL[ticket.level] ?? ticket.level).toLowerCase()}, signed by you.`}
+                </p>
+              </div>
+
+              {forwarded ? (
+                <div className="tiny" style={{ color: color.a.ink2, marginTop: 8, lineHeight: 1.5 }}>{forwarded}</div>
+              ) : null}
               {error ? (
                 <div className="tiny" style={{ color: color.redLift, marginTop: 10, lineHeight: 1.5 }}>{error}</div>
               ) : null}
@@ -224,11 +270,13 @@ export default function TicketDetailClient({
             <PanelBody>
               <Row label="Authority" value={authority?.name ?? 'Unassigned — no jurisdiction covers this point'} />
               <Row label="Sitting with" value={LEVEL_LABEL[ticket.level] ?? ticket.level} />
-              <Row label="Escalated" value={ticket.escalationCount ? `${ticket.escalationCount}×` : 'never'} />
+              <Row label="Forwarded up" value={ticket.escalationCount ? `${ticket.escalationCount}×` : 'never'} />
+              {ticket.lastEscalatedAt ? (
+                <Row label="Last forwarded" value={new Date(ticket.lastEscalatedAt).toLocaleString()} />
+              ) : null}
               <Row label="Contractor" value={contractor?.name ?? 'none assigned'} />
-              <Row label="Acknowledge by" value={new Date(ticket.slaAckDue).toLocaleString()} />
-              <Row label="Fix by" value={new Date(ticket.slaFixDue).toLocaleString()} />
               <Row label="Opened" value={new Date(ticket.createdAt).toLocaleString()} />
+              <Row label="Open for" value={ticket.ageLabel} />
               {ticket.lat != null && ticket.lng != null ? (
                 <Row label="Where" value={`${ticket.lat.toFixed(5)}, ${ticket.lng.toFixed(5)}`} />
               ) : null}

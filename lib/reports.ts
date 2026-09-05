@@ -7,7 +7,7 @@
  */
 
 import { defects, isConfigured, tickets, uploads, type DefectDoc, type TicketDoc } from './mongo';
-import { slaStanding, type Urgency } from './sla';
+import { ticketStanding, type Urgency } from './standing';
 import type { DamageClass, Severity, TicketState } from './types';
 
 export interface MyDefect {
@@ -38,15 +38,13 @@ export interface MyTicket {
   level: string;
   authorityId: string | null;
   passes: number;
-  dueLabel: string;
   urgency: Urgency;
-  breached: boolean;
-  hoursOver?: number;
-  hoursLeft?: number;
-  daysOver?: number;
-  daysLeft?: number;
+  escalated: boolean;
+  ageValue: string;
+  ageLabel: string;
+  ageHours: number;
+  ageDays: number;
   createdAt: string;
-  slaFixDue: string;
 }
 
 export interface MyReports {
@@ -60,7 +58,7 @@ export interface MyReports {
     open: number;
     fixed: number;
     reopened: number;
-    breached: number;
+    escalated: number;
   };
   /** Median days from ticket opened to repaired, over tickets that got there. */
   medianFixDays: number | null;
@@ -74,7 +72,7 @@ export interface MyReports {
 const EMPTY: MyReports = {
   configured: false,
   device: null,
-  totals: { uploads: 0, defects: 0, located: 0, tickets: 0, open: 0, fixed: 0, reopened: 0, breached: 0 },
+  totals: { uploads: 0, defects: 0, located: 0, tickets: 0, open: 0, fixed: 0, reopened: 0, escalated: 0 },
   medianFixDays: null,
   byClass: [],
   bySeverity: [],
@@ -127,7 +125,7 @@ export async function getMyReports(device: string | null): Promise<MyReports> {
         open: mine.filter((t) => !SETTLED.includes(t.state)).length,
         fixed: mine.filter((t) => SETTLED.includes(t.state)).length,
         reopened: mine.filter((t) => t.state === 'reopened').length,
-        breached: mine.filter((t) => slaStanding(t).breached).length,
+        escalated: mine.filter((t) => (t.escalationCount ?? 0) > 0).length,
       },
       medianFixDays: fixDays.length ? Number(median(fixDays).toFixed(1)) : null,
       byClass: [...byClass.entries()]
@@ -171,7 +169,7 @@ function toMyDefect(d: DefectDoc): MyDefect {
 }
 
 function toMyTicket(t: TicketDoc): MyTicket {
-  const standing = slaStanding(t);
+  const standing = ticketStanding(t);
   return {
     id: t._id,
     damageClass: t.damageClass,
@@ -185,6 +183,5 @@ function toMyTicket(t: TicketDoc): MyTicket {
     passes: t.passes,
     ...standing,
     createdAt: new Date(t.createdAt).toISOString(),
-    slaFixDue: new Date(t.slaFixDue).toISOString(),
   };
 }

@@ -46,7 +46,7 @@ export default function Brand({ theme = 'light', size = 19 }: { theme?: Theme; s
           color: theme === 'dark' ? '#EDEDED' : '#0A0A0A',
         }}
       >
-        Road<span style={{ color: color.mark }}>Sense</span>
+        Happy<span style={{ color: color.mark }}>Journey</span>
       </span>
     </span>
   );

@@ -134,7 +134,5 @@ export function severityColor(s: Severity, t: Theme = 'dark') {
 }
 
 /** Derived colour rules from §8. */
-export const slaTone = (daysOver?: number, daysLeft?: number): Tone =>
-  daysOver && daysOver > 0 ? 'red' : daysLeft !== undefined && daysLeft <= 2 ? 'amber' : 'neutral';
 export const scoreTone = (n: number): Tone => (n < 50 ? 'red' : n < 70 ? 'amber' : 'green');
 export const reliabilityTone = (n: number): Tone => (n < 0.6 ? 'red' : n < 0.8 ? 'amber' : 'green');

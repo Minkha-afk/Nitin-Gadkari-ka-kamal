@@ -1,11 +1,12 @@
 {
-  "name": "roadsense",
+  "name": "happyjourney",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "seed": "node --env-file=.env.local scripts/seed.mjs"
   },
   "dependencies": {
     "geist": "^1.7.2",

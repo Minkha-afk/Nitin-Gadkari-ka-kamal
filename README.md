@@ -1,4 +1,4 @@
-# RoadSense
+# HappyJourney
 
 Crowd-sensed road damage detection and accountability, set in Guwahati, Assam.
 Citizens report potholes just by driving; authorities cannot close a ticket
@@ -35,7 +35,7 @@ npm run dev
 ```
 app/(citizen)/    light theme, TopNav
 app/(authority)/  dark theme, Rail + TopBar + per-screen Sidebar
-components/system/  Panel Chip Btn Bar KpiTile SlaPlate Avatar Stat, ThemeProvider
+components/system/  Panel Chip Btn Bar KpiTile StatPlate Avatar Stat, ThemeProvider
 components/chrome/  TopNav Rail TopBar Sidebar JurisdictionTree FilterGroup Brand Icons
 components/data/    RoadMap RoughnessTrace Charts EvidenceFrame
 lib/tokens.ts       colours, tone/severity mapping, derived colour rules
@@ -75,10 +75,37 @@ long tables scroll inside their panel instead.
 - **Filters** on A2: the sidebar checkboxes filter the table client-side and the
   selection drives the bulk-assign toolbar.
 
+## Sample data
+
+`npm run seed` fills the database with enough road to work the ticketing system:
+five authorities forming the full ladder (two Guwahati wards → east zone →
+GMC commissioner → Assam PWD), three panel contractors, and twelve tickets
+spread across every state, several already forwarded partway up the chain.
+Audit chains are hash-linked exactly as the app writes them, so seeded tickets
+verify as intact.
+
+```
+npm run seed                    insert or refresh it
+npm run seed -- --reset         delete it, then insert it again
+npm run seed -- --drop          delete it and stop
+npm run seed -- --device <id>   report it as your browser (the rs_device cookie)
+```
+
+It only ever touches what it wrote — authorities `hj-`, contractors `hj-c-`,
+tickets `HJ-<year>-`, defects and uploads `seed:`. Evidence thumbnails are flat
+placeholders written to `public/seed/`, so nothing depends on the ML service
+having seen these roads.
+
+Worth trying: `HJ-<year>-0002` is old and never forwarded, `-0005` is already
+with the state department so forwarding it must refuse, `-0010` is closed, and
+`-0012` sits outside every jurisdiction and shows what an unowned ticket does.
+
 ## Known gaps
 
-- SLA clocks are static fixtures; the demo-scaled clock that escalates a ticket
-  live during a five-minute demo (§9.3) is not wired up.
+- Escalation is entirely manual: a ticket reaches its authority the moment it is
+  opened, and climbs the ladder only when somebody presses "Forward to higher
+  ups" (POST /api/tickets/{id}/forward). There are no SLA clocks and nothing
+  escalates on a timer.
 - Following a ticket (C1/C5) is not persisted.
 - Responsive: the authority sidebar hides below 1200 px rather than collapsing
   to a 56 px icon strip with a slide-over; column dropping is implemented on the

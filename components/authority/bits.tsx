@@ -37,16 +37,17 @@ export const LEVEL_LABEL: Record<string, string> = {
   public: 'Public',
 };
 
-export function slaTone(row: TicketRow): Tone {
-  if (row.urgency === 'breached') return 'red';
-  if (row.urgency === 'soon') return 'amber';
+/** Forwarded up reads red, an open critical amber, everything else quiet. */
+export function standingTone(row: TicketRow): Tone {
+  if (row.urgency === 'escalated') return 'red';
+  if (row.urgency === 'attention') return 'amber';
   return 'neutral';
 }
 
-export function SlaCell({ row }: { row: TicketRow }) {
+export function AgeCell({ row }: { row: TicketRow }) {
   return (
-    <span className="num" style={{ fontSize: 13, color: toneColor(slaTone(row), 'dark') }}>
-      {row.dueLabel}
+    <span className="num" style={{ fontSize: 13, color: toneColor(standingTone(row), 'dark') }}>
+      {row.urgency === 'settled' ? '—' : row.ageValue}
     </span>
   );
 }
@@ -67,15 +68,24 @@ export const TD: React.CSSProperties = {
   verticalAlign: 'middle',
 };
 
-/** The queue table, shared by the ticket queue, escalations and verification. */
+/**
+ * The queue table, shared by the ticket queue, escalations and verification.
+ *
+ * `action` renders one control per row — the escalation ladder uses it to
+ * forward a ticket up without leaving the list.
+ */
 export function TicketTable({
   rows,
   emptyNote,
   showLevel = true,
+  action,
+  actionLabel = '',
 }: {
   rows: TicketRow[];
   emptyNote: React.ReactNode;
   showLevel?: boolean;
+  action?: (row: TicketRow) => React.ReactNode;
+  actionLabel?: string;
 }) {
   if (!rows.length) {
     return (
@@ -93,7 +103,8 @@ export function TicketTable({
             <th scope="col" style={TH}>State</th>
             {showLevel ? <th scope="col" style={{ ...TH }} className="rs-drop-1">Sitting with</th> : null}
             <th scope="col" style={{ ...TH, textAlign: 'right' }}>Passes</th>
-            <th scope="col" style={{ ...TH, textAlign: 'right' }}>SLA</th>
+            <th scope="col" style={{ ...TH, textAlign: 'right' }}>Open for</th>
+            {action ? <th scope="col" style={{ ...TH, textAlign: 'right' }}>{actionLabel}</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -126,7 +137,7 @@ export function TicketTable({
                 <div style={{ fontWeight: 500, fontSize: 12.5 }}>{r.address ?? 'location not resolved'}</div>
                 <div className="tiny" style={{ color: color.a.dim, marginTop: 3 }}>
                   {r.severityLabel} · {(r.confidence * 100).toFixed(0)}% confidence
-                  {r.escalationCount ? ` · escalated ${r.escalationCount}×` : ''}
+                  {r.escalationCount ? ` · forwarded up ${r.escalationCount}×` : ''}
                 </div>
               </td>
               <td style={TD}>
@@ -143,8 +154,9 @@ export function TicketTable({
                 <span className="num" style={{ fontSize: 13 }}>{r.passes}</span>
               </td>
               <td style={{ ...TD, textAlign: 'right' }}>
-                <SlaCell row={r} />
+                <AgeCell row={r} />
               </td>
+              {action ? <td style={{ ...TD, textAlign: 'right' }}>{action(r)}</td> : null}
             </tr>
           ))}
         </tbody>

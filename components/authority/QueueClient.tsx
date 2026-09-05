@@ -28,7 +28,7 @@ export default function QueueClient({
   const [states, setStates] = React.useState<TicketState[]>([]);
   const [severities, setSeverities] = React.useState<Severity[]>([]);
   const [classes, setClasses] = React.useState<DamageClass[]>([]);
-  const [breachedOnly, setBreachedOnly] = React.useState(false);
+  const [escalatedOnly, setEscalatedOnly] = React.useState(false);
 
   // Filtering happens here rather than in the query: the whole jurisdiction is
   // already loaded, and a round trip per checkbox would be slower than the sort.
@@ -37,7 +37,7 @@ export default function QueueClient({
       (!states.length || states.includes(r.state)) &&
       (!severities.length || severities.includes(r.severity)) &&
       (!classes.length || classes.includes(r.damageClass)) &&
-      (!breachedOnly || r.urgency === 'breached'),
+      (!escalatedOnly || r.escalated),
   );
 
   const classesPresent = [...new Set(rows.map((r) => r.damageClass))];
@@ -60,8 +60,8 @@ export default function QueueClient({
           />
         ) : null}
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: color.a.ink2, cursor: 'pointer' }}>
-          <input type="checkbox" checked={breachedOnly} onChange={(e) => setBreachedOnly(e.target.checked)} />
-          Past deadline only
+          <input type="checkbox" checked={escalatedOnly} onChange={(e) => setEscalatedOnly(e.target.checked)} />
+          Forwarded up only
         </label>
       </Sidebar>
 
@@ -71,13 +71,13 @@ export default function QueueClient({
           sub={`${scopeLabel} · ${shown.length} of ${total} shown`}
           right={
             <>
-              {states.length || severities.length || classes.length || breachedOnly ? (
+              {states.length || severities.length || classes.length || escalatedOnly ? (
                 <Btn
                   onClick={() => {
                     setStates([]);
                     setSeverities([]);
                     setClasses([]);
-                    setBreachedOnly(false);
+                    setEscalatedOnly(false);
                   }}
                 >
                   Clear filters
@@ -93,7 +93,7 @@ export default function QueueClient({
             rows={shown}
             emptyNote={
               total === 0
-                ? 'No tickets in this jurisdiction. Severe damage in an upload opens one automatically; milder damage is stored but not escalated.'
+                ? 'No tickets in this jurisdiction. Severe damage in an upload opens one immediately; milder damage is stored but does not open a ticket on its own.'
                 : 'No tickets match these filters.'
             }
           />

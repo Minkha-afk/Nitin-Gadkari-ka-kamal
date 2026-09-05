@@ -69,8 +69,8 @@ export default function ReportsClient({ data }: { data: MyReports }) {
         </h1>
         <p className="lede" style={{ marginTop: 18 }}>
           {totals.tickets > 0
-            ? `${totals.tickets} of them became tickets an authority is held to. ${totals.open} still open.`
-            : 'None were severe enough to open a ticket automatically — only high and critical damage escalates on its own.'}
+            ? `${totals.tickets} of them went straight to an authority as tickets. ${totals.open} still open.`
+            : 'None were severe enough to open a ticket automatically — only high and critical damage does that on its own.'}
         </p>
 
         <div style={{ height: 40 }} />
@@ -78,7 +78,7 @@ export default function ReportsClient({ data }: { data: MyReports }) {
           <Figure value={totals.defects} label="defects sent" />
           <Figure value={totals.tickets} label="became tickets" />
           <Figure value={totals.fixed} label="fixed" tint={totals.fixed ? SEV.good.ink : undefined} />
-          <Figure value={totals.breached} label="past deadline" tint={totals.breached ? SEV.critical.ink : undefined} />
+          <Figure value={totals.escalated} label="forwarded up" tint={totals.escalated ? SEV.critical.ink : undefined} />
           <Figure value={data.medianFixDays != null ? `${data.medianFixDays}d` : '—'} label="median fix" />
         </div>
       </section>
@@ -159,8 +159,8 @@ function TicketCard({ t }: { t: MyTicket }) {
   const reached = TRACK.findIndex((s) => s.state === t.state);
   const settled = t.state === 'closed' || t.state === 'verified';
   const stepIndex = t.state === 'closed' ? TRACK.length - 1 : t.state === 'reopened' ? 0 : reached;
-  const dueTint =
-    t.urgency === 'breached' ? SEV.critical.ink : t.urgency === 'soon' ? SEV.medium.ink : 'var(--ink-3)';
+  const ageTint =
+    t.urgency === 'escalated' ? SEV.critical.ink : t.urgency === 'attention' ? SEV.medium.ink : 'var(--ink-3)';
 
   return (
     <article className="card" style={{ padding: 16, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
@@ -230,7 +230,9 @@ function TicketCard({ t }: { t: MyTicket }) {
             {STATE_COPY[t.state]}
           </span>
           <span style={{ width: 3, height: 3, borderRadius: 999, background: 'var(--ink-3)' }} />
-          <span style={{ fontSize: 14, fontWeight: 600, color: dueTint }}>{t.dueLabel}</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: ageTint }}>
+            {t.escalated ? `forwarded up · ${t.ageLabel}` : t.ageLabel}
+          </span>
         </div>
       </div>
     </article>
