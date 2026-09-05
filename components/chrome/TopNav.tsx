@@ -11,6 +11,7 @@ import { IconBell, IconSearch } from './Icons';
 const NAV = [
   { href: '/', label: 'Home' },
   { href: '/drive', label: 'Drive' },
+  { href: '/upload', label: 'Upload' },
   { href: '/routes', label: 'Routes' },
   { href: '/reports', label: 'My reports' },
   { href: '/board', label: 'Ward board' },
