@@ -66,7 +66,12 @@ export default function RoutePlanner() {
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <PlaceField label="From" value={source} onChange={setSource} placeholder="Where you start" dot="#F7F5F2" tone="ink" />
           <PlaceField label="To" value={dest} onChange={setDest} placeholder="Where you are going" dot="#F2B01E" tone="ink" />
-          <Pill variant="mark" disabled={loading || !source.trim() || !dest.trim()} style={{ height: 54, padding: '0 30px' }}>
+          <Pill
+            type="submit"
+            variant="mark"
+            disabled={loading || !source.trim() || !dest.trim()}
+            style={{ height: 54, padding: '0 30px' }}
+          >
             {loading ? 'Checking…' : 'Check the road'}
           </Pill>
         </div>

@@ -11,7 +11,7 @@
 
 import React from 'react';
 import { Divider, Empty, Eyebrow, Figure, Pill, SectionHead, SevBadgeOnShot, SEV } from '@/components/citizen/ui';
-import { IconCheck, IconUp } from '@/components/chrome/Icons';
+import { IconCheck, IconDownload, IconUp } from '@/components/chrome/Icons';
 import {
   ACCEPT,
   analyzeAndWait,
@@ -22,6 +22,8 @@ import {
   type AnalyzeStatus,
 } from '@/lib/analyze';
 import { CLASS_LABEL } from '@/lib/types';
+import { csvFilename, downloadCsv, toCsv } from '@/lib/csv';
+import { DETECTION_COLUMNS, detectionRows } from '@/lib/csv-shapes';
 
 type Phase = 'idle' | 'uploading' | 'analysing' | 'done' | 'error';
 
@@ -163,6 +165,17 @@ export default function UploadPage() {
 
   const items = result?.items ?? [];
   const summary = result?.summary;
+
+  /**
+   * The analysis is already in memory, so the report is built and downloaded in
+   * the browser — no round trip, and it still works for a job the database
+   * never accepted. One row per detection with its frame's context repeated,
+   * because that is the shape a spreadsheet can filter and pivot.
+   */
+  function downloadReport() {
+    if (!result) return;
+    downloadCsv(csvFilename('detections', result.jobId), toCsv(DETECTION_COLUMNS, detectionRows(result)));
+  }
 
   return (
     <div className="stack-xl" style={{ paddingTop: 48 }}>
@@ -396,6 +409,12 @@ export default function UploadPage() {
                   : saved && 'note' in saved
                     ? saved.note
                     : undefined
+              }
+              action={
+                <Pill variant="ghost" onClick={downloadReport}>
+                  <IconDownload size={15} />
+                  Download report
+                </Pill>
               }
             />
             <div style={{ height: 30 }} />

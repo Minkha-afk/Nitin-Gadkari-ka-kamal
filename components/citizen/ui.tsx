@@ -107,14 +107,29 @@ export function Pill({
   variant = 'solid',
   size,
   href,
+  // Defaults to "button" so a Pill dropped into a form cannot submit it by
+  // accident — but a caller that wants a submit button has to be able to say
+  // so, which is exactly what this parameter is for.
+  type = 'button',
+  download,
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'solid' | 'mark' | 'ghost' | 'onInk';
   size?: 'sm';
   href?: string;
+  download?: boolean;
 }) {
   const cls = `pill pill-${variant === 'onInk' ? 'on-ink' : variant}${size === 'sm' ? ' pill-sm' : ''}`;
   if (href) {
+    // A download link is a plain anchor, not a client-side navigation: the
+    // browser has to stream the file rather than the router trying to render it.
+    if (download) {
+      return (
+        <a href={href} download className={cls} style={{ textDecoration: 'none' }}>
+          {children}
+        </a>
+      );
+    }
     return (
       <Link href={href} className={cls} style={{ textDecoration: 'none' }}>
         {children}
@@ -122,7 +137,7 @@ export function Pill({
     );
   }
   return (
-    <button type="button" className={cls} {...rest}>
+    <button type={type} className={cls} {...rest}>
       {children}
     </button>
   );

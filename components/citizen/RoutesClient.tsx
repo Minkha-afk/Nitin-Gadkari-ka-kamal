@@ -75,7 +75,12 @@ export default function RoutesClient({ stretches }: { stretches: Stretch[] }) {
         <form onSubmit={compare} style={{ marginTop: 34, display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <PlaceField label="From" value={source} onChange={setSource} placeholder="Where you start" dot="#0A0A0A" />
           <PlaceField label="To" value={dest} onChange={setDest} placeholder="Where you are going" dot="#F2B01E" />
-          <Pill variant="solid" disabled={loading || !source.trim() || !dest.trim()} style={{ height: 54, padding: '0 28px' }}>
+          <Pill
+            type="submit"
+            variant="solid"
+            disabled={loading || !source.trim() || !dest.trim()}
+            style={{ height: 54, padding: '0 28px' }}
+          >
             {loading ? 'Comparing…' : 'Compare'}
           </Pill>
         </form>

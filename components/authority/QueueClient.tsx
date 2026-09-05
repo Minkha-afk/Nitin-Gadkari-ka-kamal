@@ -5,6 +5,7 @@ import Sidebar from '@/components/chrome/Sidebar';
 import JurisdictionTree from '@/components/chrome/JurisdictionTree';
 import { Main, PageHead } from '@/components/system/Page';
 import { Btn, Panel } from '@/components/system';
+import ExportMenu from './ExportMenu';
 import { NotConfigured, STATE_LABEL, TicketTable } from './bits';
 import type { TicketRow } from '@/lib/authority';
 import { color } from '@/lib/tokens';
@@ -69,18 +70,21 @@ export default function QueueClient({
           title="Ticket queue"
           sub={`${scopeLabel} · ${shown.length} of ${total} shown`}
           right={
-            states.length || severities.length || classes.length || breachedOnly ? (
-              <Btn
-                onClick={() => {
-                  setStates([]);
-                  setSeverities([]);
-                  setClasses([]);
-                  setBreachedOnly(false);
-                }}
-              >
-                Clear filters
-              </Btn>
-            ) : null
+            <>
+              {states.length || severities.length || classes.length || breachedOnly ? (
+                <Btn
+                  onClick={() => {
+                    setStates([]);
+                    setSeverities([]);
+                    setClasses([]);
+                    setBreachedOnly(false);
+                  }}
+                >
+                  Clear filters
+                </Btn>
+              ) : null}
+              <ExportMenu scopeLabel={scopeLabel} />
+            </>
           }
         />
         {!configured ? <NotConfigured /> : null}

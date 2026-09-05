@@ -11,6 +11,7 @@
 
 import React from 'react';
 import { Divider, Empty, Eyebrow, Figure, Pill, SectionHead, SevBadgeOnShot, SEV, ago } from './ui';
+import { IconDownload } from '@/components/chrome/Icons';
 import type { MyDefect, MyReports, MyTicket } from '@/lib/reports';
 import { CLASS_LABEL, type TicketState } from '@/lib/types';
 
@@ -88,6 +89,14 @@ export default function ReportsClient({ data }: { data: MyReports }) {
           kicker="Tickets"
           title="What happened next"
           sub={tickets.length ? undefined : 'Severe damage opens a ticket automatically. Nothing you sent reached that bar.'}
+          action={
+            tickets.length ? (
+              <Pill variant="ghost" href="/api/export/tickets.csv?mine=1" download>
+                <IconDownload size={15} />
+                Export CSV
+              </Pill>
+            ) : null
+          }
         />
         {tickets.length ? (
           <div className="stack-md">
@@ -116,6 +125,12 @@ export default function ReportsClient({ data }: { data: MyReports }) {
             kicker="Evidence"
             title="Everything you have filmed"
             sub="Timestamped and geotagged. Useful the day a claim needs it."
+            action={
+              <Pill variant="ghost" href="/api/export/defects.csv?mine=1" download>
+                <IconDownload size={15} />
+                Export CSV
+              </Pill>
+            }
           />
         </div>
         <div className="rail shell">
