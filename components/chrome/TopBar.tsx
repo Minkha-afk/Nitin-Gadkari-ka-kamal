@@ -1,18 +1,34 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePathname } from 'next/navigation';
 import { color } from '@/lib/tokens';
 import { Avatar } from '@/components/system';
 import { IconBell, IconChevron } from './Icons';
-import { useRole } from './RoleContext';
-import { ROLES } from '@/lib/fixtures/authorities';
+import { useScope } from './ScopeContext';
+
+const LEVEL_LABEL: Record<string, string> = {
+  ward_engineer: 'Ward engineer',
+  executive_engineer: 'Executive engineer',
+  commissioner: 'Commissioner',
+  state_department: 'State department',
+  public: 'Public',
+};
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter((w) => /[A-Za-z0-9]/.test(w[0] ?? ''))
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+}
 
 export default function TopBar({ crumbs }: { crumbs?: string[] }) {
-  const { role, setRoleId } = useRole();
+  const { tree, scope, scopeLabel, setScope } = useScope();
   const [open, setOpen] = useState(false);
-  const path = usePathname();
-  const trail = crumbs ?? (path === '/model' ? ['RoadSense', 'Model operations'] : role.breadcrumb);
+
+  const current = tree.nodes.find((n) => n.id === scope) ?? null;
+  const trail = crumbs ?? buildTrail(tree.nodes, scope, scopeLabel);
 
   return (
     <header
@@ -29,7 +45,7 @@ export default function TopBar({ crumbs }: { crumbs?: string[] }) {
     >
       <nav aria-label="Breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
         {trail.map((c, i) => (
-          <React.Fragment key={c}>
+          <React.Fragment key={`${c}-${i}`}>
             {i > 0 ? <span style={{ color: color.a.faint }}>/</span> : null}
             <span
               style={{
@@ -63,12 +79,12 @@ export default function TopBar({ crumbs }: { crumbs?: string[] }) {
             fontFamily: 'inherit',
           }}
         >
-          <Avatar initials={role.initials} />
+          <Avatar initials={current ? initials(current.name) : 'ALL'} />
           <span style={{ textAlign: 'left', lineHeight: 1.2 }}>
             <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, letterSpacing: '-0.011em' }}>
-              {role.name}
+              {current ? LEVEL_LABEL[current.level] ?? current.level : 'All jurisdictions'}
             </span>
-            <span style={{ display: 'block', fontSize: 11, color: color.a.dim }}>{role.scope}</span>
+            <span style={{ display: 'block', fontSize: 11, color: color.a.dim }}>{scopeLabel}</span>
           </span>
           <span style={{ color: color.a.dim, display: 'flex' }}>
             <IconChevron size={15} />
@@ -82,60 +98,115 @@ export default function TopBar({ crumbs }: { crumbs?: string[] }) {
               position: 'absolute',
               top: 46,
               right: 44,
-              width: 252,
+              width: 288,
               background: color.a.panel,
               border: `1px solid ${color.a.border}`,
               borderRadius: 10,
               padding: 5,
               zIndex: 40,
+              maxHeight: 400,
+              overflowY: 'auto',
             }}
           >
-            {ROLES.map((r) => (
-              <button
-                key={r.id}
-                role="menuitemradio"
-                aria-checked={r.id === role.id}
-                type="button"
-                onClick={() => {
-                  setRoleId(r.id);
+            <Option
+              label="All jurisdictions"
+              sub={`${tree.totalOpen} open`}
+              active={!scope || scope === 'all'}
+              onPick={() => {
+                setScope('all');
+                setOpen(false);
+              }}
+            />
+            {tree.nodes.map((n) => (
+              <Option
+                key={n.id}
+                label={n.name}
+                sub={`${LEVEL_LABEL[n.level] ?? n.level} · ${n.openCount} open`}
+                depth={n.depth}
+                active={scope === n.id}
+                onPick={() => {
+                  setScope(n.id);
                   setOpen(false);
                 }}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '8px 9px',
-                  borderRadius: 8,
-                  background: r.id === role.id ? '#1A1A1A' : 'transparent',
-                  border: 'none',
-                  color: color.a.ink,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600 }}>{r.name}</span>
-                <span style={{ display: 'block', fontSize: 11, color: color.a.dim, marginTop: 2 }}>
-                  {r.scope} · {r.queue} tickets
-                </span>
-              </button>
+              />
             ))}
+            <Option
+              label="Unassigned"
+              sub={`${tree.unassignedOpen} open · no jurisdiction covers them`}
+              active={scope === 'unassigned'}
+              onPick={() => {
+                setScope('unassigned');
+                setOpen(false);
+              }}
+            />
+            {!tree.nodes.length ? (
+              <div style={{ padding: '9px 10px', fontSize: 11, color: color.a.dim, lineHeight: 1.5 }}>
+                No authorities registered. POST one to /api/authorities with a GeoJSON jurisdiction and
+                tickets inside it will route there automatically.
+              </div>
+            ) : null}
           </div>
         ) : null}
 
         <button
           type="button"
           aria-label="Notifications"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: color.a.muted,
-            cursor: 'pointer',
-            display: 'flex',
-          }}
+          style={{ background: 'transparent', border: 'none', color: color.a.muted, cursor: 'pointer', display: 'flex' }}
         >
           <IconBell size={18} />
         </button>
       </div>
     </header>
   );
+}
+
+function Option({
+  label,
+  sub,
+  active,
+  depth = 0,
+  onPick,
+}: {
+  label: string;
+  sub: string;
+  active: boolean;
+  depth?: number;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      role="menuitemradio"
+      aria-checked={active}
+      type="button"
+      onClick={onPick}
+      style={{
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        padding: '8px 9px',
+        paddingLeft: 9 + depth * 12,
+        borderRadius: 8,
+        background: active ? '#1A1A1A' : 'transparent',
+        border: 'none',
+        color: color.a.ink,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+      }}
+    >
+      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600 }}>{label}</span>
+      <span style={{ display: 'block', fontSize: 11, color: color.a.dim, marginTop: 2 }}>{sub}</span>
+    </button>
+  );
+}
+
+function buildTrail(nodes: { id: string; name: string; parentId: string | null }[], scope: string | null, label: string) {
+  if (!scope || scope === 'all') return ['RoadSense', 'All jurisdictions'];
+  if (scope === 'unassigned') return ['RoadSense', 'Unassigned'];
+  const trail: string[] = [];
+  let cur = nodes.find((n) => n.id === scope);
+  while (cur) {
+    trail.unshift(cur.name);
+    cur = cur.parentId ? nodes.find((n) => n.id === cur!.parentId) : undefined;
+  }
+  return trail.length ? trail : ['RoadSense', label];
 }

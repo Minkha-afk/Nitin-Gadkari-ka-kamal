@@ -175,6 +175,9 @@ export async function ticketForDefect(defect: DefectDoc, actor = 'detector') {
             updatedAt: now,
           },
           $inc: { passes: 1 },
+          // Only a worse reading is history worth keeping: a later, milder pass
+          // is usually a worse camera angle, not a road that healed.
+          ...(worse ? { $push: { severityHistory: { severity: defect.severity, at: now } } } : {}),
           $addToSet: {
             defectIds: defect._id,
             ...(defect.deviceId ? { reportedBy: defect.deviceId } : {}),
@@ -217,6 +220,7 @@ export async function ticketForDefect(defect: DefectDoc, actor = 'detector') {
     contractorId: null,
     slaAckDue,
     slaFixDue,
+    severityHistory: [{ severity: defect.severity, at: now }],
     escalationCount: 0,
     lastEscalatedAt: null,
     acknowledgedAt: null,

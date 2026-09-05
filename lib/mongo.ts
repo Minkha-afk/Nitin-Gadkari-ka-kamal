@@ -119,6 +119,8 @@ export interface TicketDoc {
   contractorId: string | null;
   slaAckDue: Date;
   slaFixDue: Date;
+  /** Every severity this ticket has held, in order. A rising list is a road getting worse. */
+  severityHistory: { severity: Severity; at: Date }[];
   /** How many times it climbed the chain, and when it last did. */
   escalationCount: number;
   lastEscalatedAt: Date | null;

@@ -1,76 +1,82 @@
 'use client';
 
-import React from 'react';
-import { color } from '@/lib/tokens';
-import { JURISDICTION } from '@/lib/fixtures/authorities';
+/** The registered jurisdictions, with open counts rolled up from children. */
 
-export default function JurisdictionTree({
-  selected,
-  onSelect,
-}: {
-  selected: string;
-  onSelect?: (id: string) => void;
-}) {
+import React from 'react';
+import { useScope } from './ScopeContext';
+import { color } from '@/lib/tokens';
+
+export default function JurisdictionTree() {
+  const { tree, scope, setScope } = useScope();
+
+  if (!tree.nodes.length) {
+    return (
+      <p className="tiny" style={{ color: color.a.dim, lineHeight: 1.6, margin: 0 }}>
+        No authorities registered yet. Until one is, every ticket is unassigned — register a jurisdiction
+        with <span className="mono">POST /api/authorities</span> and anything inside its boundary routes
+        there on arrival.
+      </p>
+    );
+  }
+
   return (
     <div>
-      <div className="lbl" style={{ color: color.a.muted, marginBottom: 9 }}>
-        Jurisdiction
-      </div>
-      <div>
-        {JURISDICTION.map((n) => {
-          const on = n.id === selected;
-          return (
-            <button
-              key={n.id}
-              type="button"
-              onClick={() => onSelect?.(n.id)}
-              aria-pressed={on}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                width: '100%',
-                padding: `4px 7px 4px ${7 + n.depth * 11}px`,
-                borderRadius: 7,
-                background: on ? '#1A1A1A' : 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: 'inherit',
-                marginBottom: 1,
-              }}
-            >
-              <span
-                aria-hidden
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: '50%',
-                  background: on ? color.mark : color.a.faint,
-                  flexShrink: 0,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 12.5,
-                  letterSpacing: '-0.011em',
-                  color: on ? color.a.ink : color.a.muted,
-                  fontWeight: on ? 600 : 400,
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {n.name}
-              </span>
-              <span className="mono" style={{ color: color.a.dim, fontSize: 11 }}>
-                {n.count.toLocaleString('en-IN')}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {tree.nodes.map((n) => {
+        const active = scope === n.id;
+        return (
+          <button
+            key={n.id}
+            type="button"
+            onClick={() => setScope(n.id)}
+            style={{
+              display: 'flex',
+              width: '100%',
+              alignItems: 'center',
+              gap: 8,
+              padding: '7px 8px',
+              paddingLeft: 8 + n.depth * 14,
+              borderRadius: 7,
+              background: active ? '#1A1A1A' : 'transparent',
+              border: 'none',
+              color: active ? color.a.ink : color.a.ink2,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              textAlign: 'left',
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, letterSpacing: '-0.011em' }}>{n.name}</span>
+            <span className="mono" style={{ color: color.a.dim }}>
+              {n.openCount}
+            </span>
+          </button>
+        );
+      })}
+      {tree.unassignedOpen ? (
+        <button
+          type="button"
+          onClick={() => setScope('unassigned')}
+          style={{
+            display: 'flex',
+            width: '100%',
+            alignItems: 'center',
+            gap: 8,
+            padding: '7px 8px',
+            marginTop: 4,
+            borderTop: `1px solid ${color.a.line}`,
+            borderLeft: 'none',
+            borderRight: 'none',
+            borderBottom: 'none',
+            background: scope === 'unassigned' ? '#1A1A1A' : 'transparent',
+            color: color.amber,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ flex: 1, fontSize: 12.5 }}>Unassigned</span>
+          <span className="mono">{tree.unassignedOpen}</span>
+        </button>
+      ) : null}
     </div>
   );
 }

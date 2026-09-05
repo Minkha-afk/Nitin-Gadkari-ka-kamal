@@ -11,7 +11,8 @@
  */
 
 import { NextRequest } from 'next/server';
-import { authorities, isConfigured, tickets, type AuthorityDoc } from '@/lib/mongo';
+import { getAuthorityTree } from '@/lib/authority';
+import { authorities, isConfigured, type AuthorityDoc } from '@/lib/mongo';
 import { ESCALATION } from '@/lib/sla';
 import type { AuthorityLevel } from '@/lib/types';
 
@@ -21,18 +22,14 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   if (!isConfigured()) return Response.json({ authorities: [], configured: false });
   try {
-    const [col, ticketCol] = await Promise.all([authorities(), tickets()]);
-    const rows = await col.find({}).sort({ level: 1, name: 1 }).toArray();
-    const counts = await ticketCol
-      .aggregate<{ _id: string | null; open: number }>([
-        { $match: { state: { $nin: ['closed', 'verified'] } } },
-        { $group: { _id: '$authorityId', open: { $sum: 1 } } },
-      ])
-      .toArray();
-    const byId = new Map(counts.map((c) => [c._id, c.open]));
+    // Same rollup the sidebar uses: an authority's count includes everything
+    // beneath it, so a zone and its wards never disagree about the number.
+    const [tree, col] = await Promise.all([getAuthorityTree(), authorities()]);
+    const docs = new Map((await col.find({}).toArray()).map((a) => [a._id, a]));
     return Response.json({
-      authorities: rows.map((a) => ({ ...a, openCount: byId.get(a._id) ?? 0 })),
-      unassignedOpen: byId.get(null) ?? 0,
+      authorities: tree.nodes.map((n) => ({ ...docs.get(n.id), ...n, openCount: n.openCount })),
+      unassignedOpen: tree.unassignedOpen,
+      totalOpen: tree.totalOpen,
       configured: true,
     });
   } catch (e) {
