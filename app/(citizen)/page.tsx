@@ -13,6 +13,7 @@ import {
   PanelHead,
 } from '@/components/system';
 import RoadMap, { roadSlice } from '@/components/data/RoadMap';
+import RoutePlanner from '@/components/data/RoutePlanner';
 import { Gauge } from '@/components/data/Charts';
 import { LaneGlyph } from '@/components/chrome/Brand';
 import { IconShield } from '@/components/chrome/Icons';
@@ -74,6 +75,8 @@ export default function CitizenHome() {
       className="scrollarea"
       style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 18, flex: 1 }}
     >
+      <RoutePlanner />
+
       <div className="rs-row" style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
         {/* left */}
         <div className="rs-fixed" style={{ width: 860, flexShrink: 0 }}>

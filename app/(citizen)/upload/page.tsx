@@ -47,6 +47,9 @@ export default function UploadPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const [service, setService] = React.useState<'checking' | 'up' | 'down'>('checking');
+  const [saved, setSaved] = React.useState<
+    { stored: number; located: number } | { note: string } | null
+  >(null);
   const [gpu, setGpu] = React.useState<string | null>(null);
 
   const [conf, setConf] = React.useState(0.35);
@@ -92,6 +95,32 @@ export default function UploadPage() {
     setError(null);
     setPhase('idle');
     setUploaded(0);
+    setSaved(null);
+  }
+
+  /**
+   * Push the finished analysis into MongoDB. Every defect it found becomes a
+   * point other people's routes get checked against — that is the whole reason
+   * for uploading, so it happens automatically rather than behind a button.
+   */
+  async function persist(r: AnalyzeResult, name: string) {
+    try {
+      const res = await fetch('/api/defects/ingest', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ result: r, fileName: name }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setSaved({ note: body.error ?? 'could not save to the road database' });
+      } else if (body.skipped) {
+        setSaved({ note: body.skipped });
+      } else {
+        setSaved({ stored: body.stored, located: body.located });
+      }
+    } catch (e) {
+      setSaved({ note: (e as Error).message });
+    }
   }
 
   async function run() {
@@ -103,6 +132,7 @@ export default function UploadPage() {
     setElapsed(0);
     setResult(null);
     setError(null);
+    setSaved(null);
 
     try {
       const r = await analyzeAndWait(file, {
@@ -124,6 +154,7 @@ export default function UploadPage() {
       setResult(r);
       setPhase('done');
       if (r.status === 'failed') setError(r.error ?? 'the detector failed on this file');
+      if (r.status === 'done') void persist(r, file.name);
     } catch (e) {
       if ((e as Error).name === 'AbortError') {
         setPhase('idle');
@@ -379,6 +410,29 @@ export default function UploadPage() {
                 </Panel>
               ))}
             </div>
+
+            {saved ? (
+              <Inset
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  borderColor: 'note' in saved ? '#FAE7C6' : color.c.lineSoft,
+                  background: 'note' in saved ? '#FFFCF5' : color.c.inset,
+                }}
+              >
+                <span style={{ color: 'note' in saved ? color.amber : color.green, display: 'flex' }}>
+                  <IconCheck size={16} />
+                </span>
+                <span className="tiny" style={{ color: color.c.muted, lineHeight: 1.5 }}>
+                  {'note' in saved
+                    ? saved.note
+                    : `Saved to the road database — ${saved.stored} distinct defect${
+                        saved.stored === 1 ? '' : 's'
+                      }, ${saved.located} with coordinates. Anyone routing through here now gets warned.`}
+                </span>
+              </Inset>
+            ) : null}
 
             <Panel flush>
               <PanelHead
