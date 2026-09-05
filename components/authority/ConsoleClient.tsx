@@ -7,6 +7,7 @@ import Sidebar from '@/components/chrome/Sidebar';
 import JurisdictionTree from '@/components/chrome/JurisdictionTree';
 import { Main, PageHead } from '@/components/system/Page';
 import { Bar, Chip, KpiRow, KpiTile, Panel, PanelBody, PanelHead } from '@/components/system';
+import ExportMenu from './ExportMenu';
 import { NotConfigured, STATE_LABEL, STATE_TONE, SlaCell } from './bits';
 import type { ConsoleData } from '@/lib/authority';
 import { color, severityColor, severityTone, toneColor } from '@/lib/tokens';
@@ -62,6 +63,7 @@ export default function ConsoleClient({ data }: { data: ConsoleData }) {
         <PageHead
           title="Command centre"
           sub={`${data.scopeLabel} · ${data.totalDefects} defect${data.totalDefects === 1 ? '' : 's'} reported in total`}
+          right={<ExportMenu scopeLabel={data.scopeLabel} />}
         />
 
         {!data.configured ? <NotConfigured /> : null}

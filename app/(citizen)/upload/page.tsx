@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Bar, Btn, Chip, Inset, Panel, PanelBody, PanelHead } from '@/components/system';
-import { IconCheck, IconCloud, IconMap, IconUp } from '@/components/chrome/Icons';
+import { IconCheck, IconCloud, IconDownload, IconMap, IconUp } from '@/components/chrome/Icons';
 import {
   ACCEPT,
   analyzeAndWait,
@@ -13,6 +13,8 @@ import {
   type AnalyzeStatus,
 } from '@/lib/analyze';
 import { CLASS_LABEL } from '@/lib/types';
+import { csvFilename, downloadCsv, toCsv } from '@/lib/csv';
+import { DETECTION_COLUMNS, detectionRows } from '@/lib/csv-shapes';
 import { color, severityTone, toneColor } from '@/lib/tokens';
 
 /* ── phases ──────────────────────────────────────────────────────────
@@ -178,6 +180,18 @@ export default function UploadPage() {
 
   const items = result?.items ?? [];
   const summary = result?.summary;
+
+  /**
+   * The analysis is already in memory, so the report is built and downloaded in
+   * the browser — no round trip, and it still works for a job the database
+   * never accepted. One row per detection, with its frame's context repeated,
+   * because that is the shape a spreadsheet can actually filter and pivot.
+   */
+  function downloadReport() {
+    if (!result) return;
+    const csv = toCsv(DETECTION_COLUMNS, detectionRows(result));
+    downloadCsv(csvFilename('detections', result.jobId), csv);
+  }
 
   return (
     <div
@@ -385,6 +399,29 @@ export default function UploadPage() {
         {/* summary */}
         {summary && result?.status === 'done' ? (
           <>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'space-between',
+                gap: 16,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <h2 className="h2">What the model found</h2>
+                <p className="tiny" style={{ color: color.c.muted, marginTop: 5 }}>
+                  {items.reduce((n, i) => n + i.detectionCount, 0)} detection
+                  {items.reduce((n, i) => n + i.detectionCount, 0) === 1 ? '' : 's'} across{' '}
+                  {items.length} frame{items.length === 1 ? '' : 's'}
+                </p>
+              </div>
+              <Btn onClick={downloadReport}>
+                <IconDownload size={14} />
+                Download report
+              </Btn>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
               {[
                 [String(summary.uniquePotholes ?? summary.itemCount), 'distinct defects', undefined],
