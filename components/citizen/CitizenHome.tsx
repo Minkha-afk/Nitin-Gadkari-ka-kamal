@@ -1,258 +1,247 @@
 'use client';
 
+/**
+ * Citizen home.
+ *
+ * Structure follows what someone actually wants, in order: the answer to
+ * "is my drive bad", then what the city looks like, then what has just come in,
+ * then what all of it adds up to. Statistics come last, not first — a wall of
+ * counters at the top is the thing that made this feel like a report.
+ */
+
 import React from 'react';
-import Link from 'next/link';
-import { Bar, Btn, Chip, Inset, Panel, PanelBody, PanelHead } from '@/components/system';
+import dynamic from 'next/dynamic';
 import RoutePlanner from '@/components/data/RoutePlanner';
-import { IconUp } from '@/components/chrome/Icons';
+import { Divider, Empty, Eyebrow, Figure, Pill, SectionHead, SevBadgeOnShot, SEV, ago } from './ui';
 import type { Overview, RecentDefect } from '@/lib/overview';
-import { color, severityColor, severityTone, toneColor } from '@/lib/tokens';
 import { CLASS_LABEL } from '@/lib/types';
 
-function ago(iso: string | null) {
-  if (!iso) return null;
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 90) return 'just now';
-  if (s < 5400) return `${Math.round(s / 60)} minutes ago`;
-  if (s < 172_800) return `${Math.round(s / 3600)} hours ago`;
-  return `${Math.round(s / 86_400)} days ago`;
-}
+const TripMap = dynamic(() => import('@/components/data/TripMap'), {
+  ssr: false,
+  loading: () => <div style={{ height: 520, background: '#EFEDE9' }} />,
+});
 
 export default function CitizenHome({ overview }: { overview: Overview }) {
   const { totals, bySeverity, byClass, recent, mapPoints } = overview;
   const empty = totals.defects === 0;
-  const worst = bySeverity[0]?.severity ?? null;
 
   return (
-    <div
-      className="scrollarea"
-      style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 18, flex: 1 }}
-    >
-      <RoutePlanner />
-
-      {!overview.configured || overview.error ? (
-        <Panel style={{ padding: '12px 15px', borderColor: '#FAE7C6', background: '#FFFCF5', flexShrink: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.014em', color: '#B45E09' }}>
-            {overview.configured ? 'The road database could not be read' : 'No road database connected'}
-          </div>
-          <div className="tiny" style={{ color: color.c.muted, marginTop: 5, lineHeight: 1.5 }}>
-            {overview.error ??
-              'Set MONGODB_URI in .env.local. Until then nothing that has been sent in can be shown here.'}
-          </div>
-        </Panel>
-      ) : null}
-
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexShrink: 0 }}>
-        <div>
-          <h1 className="h1">Roads around you, right now</h1>
-          <p className="sub" style={{ color: color.c.muted, marginTop: 7 }}>
-            {empty
-              ? 'Nothing has been sent in yet. The first upload puts a road on the map above.'
-              : `${totals.defects} defect${totals.defects === 1 ? '' : 's'} from ${totals.uploads} upload${
-                  totals.uploads === 1 ? '' : 's'
-                }${overview.lastReportAt ? ` · last report ${ago(overview.lastReportAt)}` : ''}`}
+    <div className="stack-xl" style={{ paddingTop: 40 }}>
+      {/* ── hero ─────────────────────────────────────────────────────── */}
+      <section className="shell">
+        <div className="ink-panel rise" style={{ padding: 'clamp(28px, 4vw, 56px)' }}>
+          <Eyebrow style={{ color: 'rgba(247,245,242,0.45)' }}>Road intelligence · live</Eyebrow>
+          <h1 className="display" style={{ marginTop: 18, color: '#F7F5F2', maxWidth: '15ch' }}>
+            Know the road
+            <br />
+            before you&rsquo;re on it.
+          </h1>
+          <p className="lede" style={{ marginTop: 20, color: 'rgba(247,245,242,0.6)', maxWidth: '46ch' }}>
+            Every pothole and crack a camera has sent in, matched against the drive you are about to
+            take.
           </p>
+
+          <div style={{ height: 36 }} />
+          <RoutePlanner />
         </div>
-        <Link href="/upload">
-          <Btn primary>
-            <IconUp size={14} />
-            Send in a road
-          </Btn>
-        </Link>
-      </div>
+      </section>
 
-      <div className="rs-row" style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexShrink: 0 }}>
-        {/* left — every report, newest first */}
-        <Panel flush className="rs-fixed" style={{ width: 860, flexShrink: 0 }}>
-          <PanelHead
-            title="Latest reports"
-            sub={empty ? undefined : `${recent.length} most recent of ${totals.defects}`}
+      {/* ── the city ─────────────────────────────────────────────────── */}
+      <section className="stack-lg">
+        <div className="shell">
+          <SectionHead
+            kicker="The map"
+            title="Everything reported so far"
+            sub={
+              empty
+                ? 'Nothing has been sent in yet. The first upload puts a road on this map.'
+                : `${totals.defects} defect${totals.defects === 1 ? '' : 's'} across ${totals.roads || totals.uploads} location${
+                    (totals.roads || totals.uploads) === 1 ? '' : 's'
+                  }${overview.lastReportAt ? ` · newest ${ago(overview.lastReportAt)}` : ''}`
+            }
+            action={<Pill variant="ghost" href="/routes">Compare routes</Pill>}
           />
-          {recent.length ? (
-            <div style={{ padding: '10px 14px 12px' }}>
-              {recent.map((d, i) => (
-                <ReportRow key={d.id} d={d} last={i === recent.length - 1} />
-              ))}
-            </div>
-          ) : (
-            <PanelBody>
-              <Inset style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span className="sub" style={{ color: color.c.muted, flex: 1 }}>
-                  {mapPoints.length === 0 && totals.defects > 0
-                    ? 'Defects have been reported but none carry coordinates. The detector reads GPS off an ' +
-                      'overlay burned into the frame; footage without one still gets analysed, it just cannot ' +
-                      'be placed on a map.'
-                    : 'No reports yet. Anything you upload shows here with the frame it was found in, where it ' +
-                      'was, and how sure the detector was.'}
-                </span>
-                <Link href="/upload">
-                  <Btn>Upload</Btn>
-                </Link>
-              </Inset>
-            </PanelBody>
-          )}
-        </Panel>
+        </div>
 
-        {/* right — what the database actually holds */}
-        <div
-          className="rs-fixed"
-          style={{ width: 494, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 18 }}
-        >
-          <Panel>
-            <PanelHead
-              title="What has been reported"
-              right={
-                worst && !empty ? (
-                  <Chip tone={severityTone[worst]} dot>
-                    worst is {worst}
-                  </Chip>
-                ) : null
-              }
-            />
-            <PanelBody>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-                {[
-                  [totals.defects, 'distinct defects'],
-                  [totals.located, 'with coordinates'],
-                  [totals.sightings, 'frame sightings'],
-                  [totals.roads, 'named streets'],
-                ].map(([v, l]) => (
-                  <div key={l as string}>
-                    <div className="num" style={{ fontSize: 22 }}>
-                      {v as number}
-                    </div>
-                    <div className="tiny" style={{ color: color.c.muted, marginTop: 5, lineHeight: 1.4 }}>
-                      {l as string}
-                    </div>
+        {/* Full-bleed. A map boxed inside a card is a thumbnail; a map that
+            runs to both edges is a place. */}
+        {mapPoints.length ? (
+          <div style={{ position: 'relative' }}>
+            <TripMap route={[]} hazards={mapPoints} height={520} />
+            <div
+              className="hide-sm"
+              style={{
+                position: 'absolute',
+                left: 'max(28px, calc(50vw - 620px + 28px))',
+                bottom: 26,
+                zIndex: 500,
+                background: 'rgba(255,255,255,0.94)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: 18,
+                padding: '16px 18px',
+                boxShadow: 'var(--lift-2)',
+                minWidth: 190,
+              }}
+            >
+              <Eyebrow>Severity</Eyebrow>
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {bySeverity.map((s) => (
+                  <div key={s.severity} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 999, background: SEV[s.severity].ink }} />
+                    <span style={{ flex: 1, fontSize: 13.5, fontWeight: 500 }}>{SEV[s.severity].label}</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 650 }}>{s.count}</span>
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        ) : (
+          <div className="shell">
+            <Empty
+              kicker="Nothing on the map"
+              title="Be the first camera on these roads"
+              body="Upload a photo or a dashcam clip. Every defect found in it lands here, ready to warn whoever drives it next."
+              action={<Pill variant="solid" href="/upload">Send in a road</Pill>}
+            />
+          </div>
+        )}
+      </section>
 
-              {bySeverity.length ? (
-                <div style={{ marginTop: 14 }}>
-                  {bySeverity.map((s) => (
-                    <div key={s.severity} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-                      <span style={{ width: 64, fontSize: 12.5, textTransform: 'capitalize' }}>{s.severity}</span>
-                      <Bar
-                        value={(s.count / totals.defects) * 100}
-                        color={severityColor(s.severity, 'light')}
-                        style={{ flex: 1 }}
-                      />
-                      <span className="num" style={{ fontSize: 14, width: 30, textAlign: 'right' }}>
-                        {s.count}
-                      </span>
-                    </div>
+      {/* ── the feed ─────────────────────────────────────────────────── */}
+      {recent.length ? (
+        <section className="stack-lg">
+          <div className="shell">
+            <SectionHead
+              kicker="Just in"
+              title="What cameras found"
+              action={<Pill variant="ghost" href="/reports">Your reports</Pill>}
+            />
+          </div>
+          <div className="rail shell" style={{ overflowX: 'auto' }}>
+            {recent.map((d) => (
+              <ReportCard key={d.id} d={d} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* ── the total ────────────────────────────────────────────────── */}
+      {!empty ? (
+        <section className="shell">
+          <div className="card" style={{ padding: 'clamp(26px, 3.4vw, 44px)' }}>
+            <SectionHead kicker="In total" title="What has been sensed" />
+            <div style={{ height: 30 }} />
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: 30,
+              }}
+            >
+              <Figure value={totals.defects} label="distinct defects" />
+              <Figure value={totals.sightings} label="camera sightings" />
+              <Figure value={totals.located} label="pinned on the map" />
+              <Figure value={totals.roads} label="named streets" />
+              <Figure value={totals.uploads} label="uploads" />
+            </div>
+
+            {byClass.length ? (
+              <>
+                <div style={{ height: 34 }} />
+                <Divider />
+                <div style={{ height: 22 }} />
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {byClass.map((c) => (
+                    <span
+                      key={c.damageClass}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        height: 38,
+                        padding: '0 16px',
+                        borderRadius: 999,
+                        border: '1px solid var(--hairline)',
+                        fontSize: 14,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {CLASS_LABEL[c.damageClass] ?? c.damageClass}
+                      <span style={{ fontWeight: 700 }}>{c.count}</span>
+                    </span>
                   ))}
                 </div>
-              ) : (
-                <p className="tiny" style={{ color: color.c.muted, marginTop: 14, lineHeight: 1.55 }}>
-                  Severity appears here once a road has been analysed. It comes from the detector, which
-                  reports visible surface damage only — never an official safety determination.
-                </p>
-              )}
-            </PanelBody>
-          </Panel>
+              </>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
-          <Panel>
-            <PanelHead title="By damage type" />
-            <PanelBody>
-              {byClass.length ? (
-                byClass.map((c) => (
-                  <div
-                    key={c.damageClass}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}
-                  >
-                    <span style={{ flex: 1, fontSize: 12.5 }}>
-                      {CLASS_LABEL[c.damageClass] ?? c.damageClass}
-                    </span>
-                    <Bar value={(c.count / totals.defects) * 100} width={150} color={color.c.ink} />
-                    <span className="num" style={{ fontSize: 14, width: 30, textAlign: 'right' }}>
-                      {c.count}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="tiny" style={{ color: color.c.muted, lineHeight: 1.55 }}>
-                  Nothing classified yet. The detector separates potholes from alligator, longitudinal and
-                  transverse cracking; patched road is deliberately not counted as damage.
-                </p>
-              )}
-            </PanelBody>
-          </Panel>
+      {/* ── close ────────────────────────────────────────────────────── */}
+      <section className="shell">
+        <div
+          className="ink-panel"
+          style={{
+            padding: 'clamp(30px, 4vw, 58px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 28,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <h2 className="display-sm" style={{ color: '#F7F5F2', maxWidth: '17ch' }}>
+              A road nobody films is a road nobody fixes.
+            </h2>
+            <p className="copy" style={{ marginTop: 14, color: 'rgba(247,245,242,0.55)', maxWidth: '48ch' }}>
+              Severe damage you send in opens a ticket with a deadline the authority is held to.
+            </p>
+          </div>
+          <Pill variant="mark" href="/upload" style={{ height: 54, padding: '0 30px' }}>
+            Send in a road
+          </Pill>
         </div>
-      </div>
-
+      </section>
     </div>
   );
 }
 
-function ReportRow({ d, last }: { d: RecentDefect; last: boolean }) {
-  const tone = severityTone[d.severity];
+/** One report, photograph first. */
+function ReportCard({ d }: { d: RecentDefect }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 13,
-        padding: '11px 0',
-        borderBottom: last ? undefined : '1px solid #F5F5F5',
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={d.imageUrl}
-        alt=""
-        style={{
-          width: 76,
-          height: 50,
-          objectFit: 'cover',
-          borderRadius: 7,
-          border: `1px solid ${color.c.line}`,
-          background: color.c.inset,
-          flexShrink: 0,
-        }}
-      />
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, letterSpacing: '-0.011em' }}>
-          {CLASS_LABEL[d.damageClass] ?? d.damageClass}
-        </span>
-        <span
-          className="tiny"
+    <article className="card card-interactive" style={{ width: 288, padding: 12, overflow: 'hidden' }}>
+      <div className="shot shot-wash" style={{ aspectRatio: '4 / 3', borderRadius: 14 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={d.imageUrl} alt="" />
+        <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}>
+          <SevBadgeOnShot severity={d.severity}>{d.severityLabel}</SevBadgeOnShot>
+        </div>
+        <div style={{ position: 'absolute', left: 14, right: 14, bottom: 12, zIndex: 2 }}>
+          <div style={{ color: '#fff', fontSize: 15.5, fontWeight: 650, letterSpacing: '-0.018em' }}>
+            {CLASS_LABEL[d.damageClass] ?? d.damageClass}
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: '14px 6px 6px' }}>
+        <div
           style={{
-            color: color.c.muted,
-            display: 'block',
-            marginTop: 3,
+            fontSize: 13.5,
+            color: 'var(--ink-2)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}
         >
           {d.address ??
-            (d.lat != null && d.lng != null
-              ? `${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}`
-              : 'no coordinates on this footage')}
-        </span>
-        <span className="mono" style={{ color: color.c.dim, display: 'block', marginTop: 3 }}>
-          {ago(d.createdAt)} · {(d.confidence * 100).toFixed(0)}% confidence
-          {d.sightings > 1 ? ` · seen in ${d.sightings} frames` : ''}
-          {d.fileName ? ` · ${d.fileName}` : ''}
-        </span>
-      </span>
-      {d.mapsUrl ? (
-        <a
-          href={d.mapsUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="tiny"
-          style={{ color: color.blue, textDecoration: 'none', flexShrink: 0 }}
-        >
-          Maps
-        </a>
-      ) : null}
-      <Chip tone={tone} style={{ flexShrink: 0 }}>
-        {d.severityLabel}
-      </Chip>
-      <span style={{ width: 4, height: 30, borderRadius: 2, background: toneColor(tone, 'light'), flexShrink: 0 }} />
-    </div>
+            (d.lat != null && d.lng != null ? `${d.lat.toFixed(4)}, ${d.lng.toFixed(4)}` : 'no coordinates')}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9 }}>
+          <Eyebrow>{ago(d.createdAt)}</Eyebrow>
+          <span style={{ width: 3, height: 3, borderRadius: 999, background: 'var(--ink-3)' }} />
+          <Eyebrow>{(d.confidence * 100).toFixed(0)}% sure</Eyebrow>
+        </div>
+      </div>
+    </article>
   );
 }

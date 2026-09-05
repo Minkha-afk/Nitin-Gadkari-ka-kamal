@@ -10,10 +10,16 @@
  * Tickets follow the authority scope cookie, the same as every console screen,
  * so an export matches what was on screen when it was asked for. `?scope=all`
  * overrides that.
+ *
+ * `?mine=1` is the citizen side of the same endpoint: it narrows tickets and
+ * detections to the browser that sent them, using the device cookie. Someone
+ * downloading their own evidence gets the identical columns an engineer sees,
+ * which is the point — it is the same record, not a summary of it.
  */
 
 import { NextRequest } from 'next/server';
 import { scopeFilter, selectedScope } from '@/lib/authority';
+import { deviceId } from '@/lib/device';
 import { BOM, csvFilename, toCsv, type Column } from '@/lib/csv';
 import {
   defects,
@@ -124,6 +130,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ kind: strin
   // The route is linked as /api/export/tickets.csv so the browser saves it with
   // a sensible name even if the header is ignored.
   const kind = (await ctx.params).kind.replace(/\.csv$/, '');
+  const mine = req.nextUrl.searchParams.get('mine') === '1';
 
   try {
     let csv: string;
@@ -131,18 +138,28 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ kind: strin
 
     switch (kind) {
       case 'tickets': {
-        const scope = req.nextUrl.searchParams.get('scope') === 'all' ? null : await selectedScope();
-        const rows = await (await tickets())
-          .find(await scopeFilter(scope))
-          .sort({ createdAt: -1 })
-          .limit(LIMIT)
-          .toArray();
+        let filter: Record<string, unknown>;
+        if (mine) {
+          const device = await deviceId();
+          filter = { reportedBy: device ?? '__none__' };
+          suffix = 'mine';
+        } else {
+          const scope = req.nextUrl.searchParams.get('scope') === 'all' ? null : await selectedScope();
+          filter = await scopeFilter(scope);
+          suffix = scope ?? 'all';
+        }
+        const rows = await (await tickets()).find(filter).sort({ createdAt: -1 }).limit(LIMIT).toArray();
         csv = toCsv(TICKET_COLUMNS, rows);
-        suffix = scope ?? 'all';
         break;
       }
       case 'defects': {
-        const rows = await (await defects()).find({}).sort({ createdAt: -1 }).limit(LIMIT).toArray();
+        let filter: Record<string, unknown> = {};
+        if (mine) {
+          const device = await deviceId();
+          filter = { deviceId: device ?? '__none__' };
+          suffix = 'mine';
+        }
+        const rows = await (await defects()).find(filter).sort({ createdAt: -1 }).limit(LIMIT).toArray();
         csv = toCsv(DEFECT_COLUMNS, rows);
         break;
       }

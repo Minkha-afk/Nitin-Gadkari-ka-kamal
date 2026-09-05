@@ -132,8 +132,10 @@ export default function TripMap({
       ...route.map((p) => [p.lat, p.lng] as [number, number]),
       ...hazards.map((h) => [h.lat, h.lng] as [number, number]),
     ];
-    if (pts.length === 1) m.setView(pts[0], 16);
-    else if (pts.length) m.fitBounds(L.latLngBounds(pts), { padding: [28, 28] });
+    // Cap the zoom when fitting: two defects a few metres apart would otherwise
+    // fill the frame with one building and lose all sense of where this is.
+    if (pts.length === 1) m.setView(pts[0], 15);
+    else if (pts.length) m.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 15 });
   }, [route, hazards, source, destination, onSelect]);
 
   return (
