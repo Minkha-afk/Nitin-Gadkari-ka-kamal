@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ── type scale ──────────────────────────────────────────── */
+.h1 {
+  font-size: 29px;
+  font-weight: 600;
+  letter-spacing: -0.032em;
+  line-height: 1.12;
+  margin: 0;
+}
+.h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  margin: 0;
+}
+.num {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1.05;
+}
+.body {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: -0.011em;
+}
+.lbl {
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+.sub {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: -0.011em;
+  line-height: 1.5;
+  margin: 0;
+}
+.tiny {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+.mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ── tables ──────────────────────────────────────────────── */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+td {
+  font-size: 13px;
+  letter-spacing: -0.011em;
+}
+
+/* ── focus ───────────────────────────────────────────────── */
+:where(a, button, input, [tabindex]):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── scrollbars inside panels ────────────────────────────── */
+.scrollarea {
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.scrollarea::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollarea::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.28);
+  border-radius: 99px;
+}
+.scrollarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ── responsive (§10) ────────────────────────────────────── */
+/* Screens are designed at 1440 × 1024. Below that the chrome sheds
+   weight in a fixed order rather than reflowing the whole grid. */
+
+/* 1200–1439: the authority sidebar collapses, KPI rows become a strip */
+@media (max-width: 1439px) {
+  .rs-kpi {
+    display: flex !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .rs-kpi > * {
+    min-width: 190px;
+    flex: 1 0 auto;
+  }
+  .rs-kpi::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 1199px) {
+  .rs-sidebar {
+    display: none;
+  }
+  /* drop "Sitting with", then "Agreement", then "Contractor" */
+  .rs-drop-1 {
+    display: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .rs-drop-2 {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .rs-drop-3 {
+    display: none;
+  }
+  /* citizen two-column grids stack, fixed columns go full width */
+  .rs-row {
+    flex-direction: column !important;
+    height: auto !important;
+  }
+  .rs-fixed {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+  .rs-row svg {
+    max-width: 100%;
+    height: auto;
+  }
+}
