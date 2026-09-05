@@ -1,8 +1,17 @@
 'use client';
 
+/**
+ * Send in a road.
+ *
+ * One instruction, one enormous target, then the result as photographs. The
+ * settings that used to sit in a sidebar are folded away — nobody adjusts a
+ * confidence threshold on their first upload, and putting it in the front door
+ * made the front door look like a control panel.
+ */
+
 import React from 'react';
-import { Bar, Btn, Chip, Inset, Panel, PanelBody, PanelHead } from '@/components/system';
-import { IconCheck, IconCloud, IconMap, IconUp } from '@/components/chrome/Icons';
+import { Divider, Empty, Eyebrow, Figure, Pill, SectionHead, SevBadgeOnShot, SEV } from '@/components/citizen/ui';
+import { IconCheck, IconUp } from '@/components/chrome/Icons';
 import {
   ACCEPT,
   analyzeAndWait,
@@ -13,24 +22,16 @@ import {
   type AnalyzeStatus,
 } from '@/lib/analyze';
 import { CLASS_LABEL } from '@/lib/types';
-import { color, severityTone, toneColor } from '@/lib/tokens';
 
-/* ── phases ──────────────────────────────────────────────────────────
-   uploading → the file is still going over the wire (XHR progress)
-   analysing → the server has it; a video is being polled              */
 type Phase = 'idle' | 'uploading' | 'analysing' | 'done' | 'error';
 
 const STATUS_TEXT: Record<AnalyzeStatus, string> = {
-  queued: 'Queued behind another clip',
-  processing: 'Walking the frames',
+  queued: 'Queued',
+  processing: 'Reading every frame',
   done: 'Done',
   failed: 'Failed',
-  rejected: 'Rejected',
+  rejected: 'Not assessed',
 };
-
-function secs(ms: number) {
-  return `${(ms / 1000).toFixed(0)}s`;
-}
 
 function bytes(n: number) {
   return n > 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${(n / 1024).toFixed(0)} KB`;
@@ -47,10 +48,8 @@ export default function UploadPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const [service, setService] = React.useState<'checking' | 'up' | 'down'>('checking');
-  const [saved, setSaved] = React.useState<
-    { stored: number; located: number } | { note: string } | null
-  >(null);
-  const [gpu, setGpu] = React.useState<string | null>(null);
+  const [saved, setSaved] = React.useState<{ stored: number; located: number } | { note: string } | null>(null);
+  const [showSettings, setShowSettings] = React.useState(false);
 
   const [conf, setConf] = React.useState(0.35);
   const [geocode, setGeocode] = React.useState(true);
@@ -58,18 +57,13 @@ export default function UploadPage() {
 
   const inputRef = React.useRef<HTMLInputElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
-
   const busy = phase === 'uploading' || phase === 'analysing';
   const kind = file ? fileKind(file) : null;
 
   React.useEffect(() => {
     let live = true;
     health()
-      .then((h) => {
-        if (!live) return;
-        setService('up');
-        setGpu(h.cuda ? String(h.gpu ?? 'GPU') : 'CPU — slower');
-      })
+      .then(() => live && setService('up'))
       .catch(() => live && setService('down'));
     return () => {
       live = false;
@@ -93,16 +87,11 @@ export default function UploadPage() {
     setFile(f);
     setResult(null);
     setError(null);
+    setSaved(null);
     setPhase('idle');
     setUploaded(0);
-    setSaved(null);
   }
 
-  /**
-   * Push the finished analysis into MongoDB. Every defect it found becomes a
-   * point other people's routes get checked against — that is the whole reason
-   * for uploading, so it happens automatically rather than behind a button.
-   */
   async function persist(r: AnalyzeResult, name: string) {
     try {
       const res = await fetch('/api/defects/ingest', {
@@ -111,13 +100,9 @@ export default function UploadPage() {
         body: JSON.stringify({ result: r, fileName: name }),
       });
       const body = await res.json();
-      if (!res.ok) {
-        setSaved({ note: body.error ?? 'could not save to the road database' });
-      } else if (body.skipped) {
-        setSaved({ note: body.skipped });
-      } else {
-        setSaved({ stored: body.stored, located: body.located });
-      }
+      if (!res.ok) setSaved({ note: body.error ?? 'could not save' });
+      else if (body.skipped) setSaved({ note: body.skipped });
+      else setSaved({ stored: body.stored, located: body.located });
     } catch (e) {
       setSaved({ note: (e as Error).message });
     }
@@ -133,7 +118,6 @@ export default function UploadPage() {
     setResult(null);
     setError(null);
     setSaved(null);
-
     try {
       const r = await analyzeAndWait(file, {
         conf,
@@ -172,6 +156,7 @@ export default function UploadPage() {
     setFile(null);
     setResult(null);
     setError(null);
+    setSaved(null);
     setPhase('idle');
     setUploaded(0);
   }
@@ -180,469 +165,358 @@ export default function UploadPage() {
   const summary = result?.summary;
 
   return (
-    <div
-      className="scrollarea rs-row"
-      style={{ padding: '20px 28px', display: 'flex', gap: 18, flex: 1, alignItems: 'flex-start' }}
-    >
-      {/* ── left: drop, progress, results ───────────────────────────── */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20 }}>
-          <div>
-            <h1 className="h1">Send in a road</h1>
-            <p className="sub" style={{ color: color.c.muted, marginTop: 7 }}>
-              A photo or a dashcam clip. The detector reads every frame, keeps the ones with damage,
-              and pins them where your camera says you were.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Chip tone={service === 'up' ? 'green' : service === 'down' ? 'red' : 'neutral'} dot>
-              {service === 'up' ? 'Detector online' : service === 'down' ? 'Detector offline' : 'Checking…'}
-            </Chip>
-            {file ? <Btn onClick={reset}>Start over</Btn> : null}
-          </div>
-        </div>
+    <div className="stack-xl" style={{ paddingTop: 48 }}>
+      <section className="shell">
+        <Eyebrow>Contribute</Eyebrow>
+        <h1 className="display" style={{ marginTop: 16, maxWidth: '13ch' }}>
+          Send in a road.
+        </h1>
+        <p className="lede" style={{ marginTop: 18 }}>
+          A photo or a dashcam clip. Two models read every frame, keep the ones with damage, and pin
+          them where your camera says you were.
+        </p>
+      </section>
 
-        {/* dropzone */}
-        <Panel
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            if (!busy) pick(e.dataTransfer.files?.[0]);
-          }}
-          style={{
-            padding: 0,
-            borderStyle: file ? 'solid' : 'dashed',
-            borderColor: dragging ? color.mark : color.c.border,
-            background: dragging ? '#FFFCF3' : color.c.surface,
-          }}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept={ACCEPT}
-            hidden
-            onChange={(e) => pick(e.target.files?.[0])}
-          />
+      {/* ── the target ───────────────────────────────────────────────── */}
+      <section className="shell">
+        <input ref={inputRef} type="file" accept={ACCEPT} hidden onChange={(e) => pick(e.target.files?.[0])} />
 
-          {!file ? (
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
+        {!file ? (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              pick(e.dataTransfer.files?.[0]);
+            }}
+            style={{
+              width: '100%',
+              borderRadius: 26,
+              border: `2px dashed ${dragging ? 'var(--mark)' : 'var(--hairline)'}`,
+              background: dragging ? '#FFFCF2' : 'var(--card)',
+              padding: 'clamp(48px, 8vw, 96px) 24px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 18,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              transition: 'border-color 0.24s var(--ease), background 0.24s var(--ease)',
+            }}
+          >
+            <span
+              aria-hidden
               style={{
-                width: '100%',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '46px 20px',
+                width: 62,
+                height: 62,
+                borderRadius: 999,
+                background: 'var(--mark)',
+                color: '#17130A',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
-                gap: 12,
-                fontFamily: 'inherit',
-                color: color.c.ink,
+                justifyContent: 'center',
               }}
             >
-              <span
-                aria-hidden
-                style={{
-                  width: 46,
-                  height: 46,
-                  borderRadius: 12,
-                  background: color.c.inset,
-                  border: `1px solid ${color.c.line}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: color.c.muted,
-                }}
-              >
-                <IconUp size={20} />
-              </span>
-              <span style={{ fontSize: 14.5, fontWeight: 600, letterSpacing: '-0.018em' }}>
-                Drop a road photo or clip, or choose a file
-              </span>
-              <span className="tiny" style={{ color: color.c.muted }}>
-                JPG · PNG · WEBP · BMP &nbsp;·&nbsp; MP4 · MOV · AVI · MKV · WEBM · M4V
-              </span>
-            </button>
-          ) : (
-            <div style={{ display: 'flex', gap: 14, padding: 14, alignItems: 'center' }}>
-              <span
-                style={{
-                  width: 108,
-                  height: 72,
-                  borderRadius: 9,
-                  overflow: 'hidden',
-                  background: color.c.inset,
-                  border: `1px solid ${color.c.line}`,
-                  flexShrink: 0,
-                  display: 'block',
-                }}
-              >
+              <IconUp size={24} />
+            </span>
+            <span className="display-sm" style={{ textAlign: 'center' }}>
+              Drop it here
+            </span>
+            <span className="copy" style={{ textAlign: 'center' }}>
+              or choose a file · JPG PNG WEBP BMP · MP4 MOV AVI MKV WEBM M4V
+            </span>
+          </button>
+        ) : (
+          <div className="card" style={{ padding: 18 }}>
+            <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="shot" style={{ width: 168, aspectRatio: '4 / 3', borderRadius: 14, flexShrink: 0 }}>
                 {previewUrl && kind === 'image' ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={previewUrl} alt="" />
                 ) : previewUrl ? (
                   <video src={previewUrl} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : null}
-              </span>
+              </div>
 
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span
-                  style={{
-                    display: 'block',
-                    fontSize: 13.5,
-                    fontWeight: 600,
-                    letterSpacing: '-0.014em',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div className="title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {file.name}
-                </span>
-                <span className="tiny" style={{ color: color.c.muted, display: 'block', marginTop: 4 }}>
-                  {kind === 'video' ? 'Video' : 'Image'} · {bytes(file.size)}
-                  {kind === 'video' ? ' · tracked at 12 fps, reported at 2 fps' : ''}
-                </span>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <Eyebrow>
+                    {kind === 'video' ? 'Video' : 'Image'} · {bytes(file.size)}
+                    {kind === 'video' ? ' · tracked at 12 fps' : ''}
+                  </Eyebrow>
+                </div>
 
                 {busy ? (
-                  <span style={{ display: 'block', marginTop: 9 }}>
-                    <Bar
-                      value={phase === 'uploading' ? uploaded * 100 : 100}
-                      color={phase === 'uploading' ? color.blue : color.mark}
-                    />
-                    <span className="tiny" style={{ color: color.c.muted, display: 'block', marginTop: 6 }}>
-                      {phase === 'uploading'
-                        ? `Uploading — ${(uploaded * 100).toFixed(0)}%`
-                        : `${STATUS_TEXT[status]} — ${secs(elapsed)}`}
-                    </span>
-                  </span>
+                  <div style={{ marginTop: 18 }}>
+                    <div style={{ height: 6, borderRadius: 999, background: '#EFEDE9', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: phase === 'uploading' ? `${uploaded * 100}%` : '100%',
+                          height: '100%',
+                          background: 'var(--mark)',
+                          borderRadius: 999,
+                          transition: 'width 0.3s var(--ease)',
+                        }}
+                      />
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <Eyebrow>
+                        {phase === 'uploading'
+                          ? `Uploading ${(uploaded * 100).toFixed(0)}%`
+                          : `${STATUS_TEXT[status]} · ${(elapsed / 1000).toFixed(0)}s`}
+                      </Eyebrow>
+                    </div>
+                  </div>
                 ) : null}
-              </span>
+              </div>
 
-              {busy ? (
-                <Btn onClick={reset}>Cancel</Btn>
-              ) : (
-                <Btn primary onClick={run} disabled={service === 'down'}>
-                  {result ? 'Analyse again' : 'Analyse this road'}
-                </Btn>
-              )}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {busy ? (
+                  <Pill variant="ghost" onClick={reset}>Cancel</Pill>
+                ) : (
+                  <>
+                    <Pill variant="ghost" onClick={reset}>Change</Pill>
+                    <Pill variant="mark" onClick={run} disabled={service === 'down'}>
+                      {result ? 'Analyse again' : 'Analyse this road'}
+                    </Pill>
+                  </>
+                )}
+              </div>
             </div>
-          )}
-        </Panel>
 
-        {error ? (
-          <Panel style={{ borderColor: '#FBDDD9', background: '#FFFBFA', padding: '12px 14px' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: color.red, letterSpacing: '-0.014em' }}>
-              That did not go through
-            </div>
-            <div className="tiny" style={{ color: color.c.muted, marginTop: 5 }}>
-              {error}
-            </div>
-          </Panel>
-        ) : null}
+            {service === 'down' ? (
+              <p className="copy" style={{ marginTop: 16, color: SEV.critical.ink }}>
+                The detector is offline, so nothing can be analysed right now.
+              </p>
+            ) : null}
+          </div>
+        )}
 
-        {/* rejected — a real outcome, not an error */}
-        {result?.status === 'rejected' ? (
-          <Panel style={{ padding: '14px 16px' }}>
-            <Chip tone="amber">Not assessed</Chip>
-            <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 9, letterSpacing: '-0.014em' }}>
-              {result.reason ?? 'this frame could not be assessed'}
+        {/* settings, folded away */}
+        <div style={{ marginTop: 18 }}>
+          <button
+            type="button"
+            onClick={() => setShowSettings((v) => !v)}
+            className="pill pill-ghost pill-sm"
+            disabled={busy}
+          >
+            {showSettings ? 'Hide' : 'How hard to look'}
+          </button>
+
+          {showSettings ? (
+            <div className="card rise" style={{ padding: 22, marginTop: 14, maxWidth: 560 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <Eyebrow>Confidence threshold</Eyebrow>
+                <span style={{ fontWeight: 700, fontSize: 16 }}>{conf.toFixed(2)}</span>
+              </div>
+              <input
+                type="range"
+                min={0.05}
+                max={0.8}
+                step={0.05}
+                value={conf}
+                disabled={busy}
+                onChange={(e) => setConf(Number(e.target.value))}
+                style={{ width: '100%', marginTop: 12, accentColor: '#0A0A0A' }}
+              />
+              <p className="copy" style={{ marginTop: 10, fontSize: 13.5 }}>
+                Lower finds more damage and more false positives. 0.35 is the tuned default.
+              </p>
+              <div style={{ height: 18 }} />
+              <Divider />
+              <div style={{ height: 18 }} />
+              <Toggle on={readGps} disabled={busy} onChange={setReadGps} label="Read GPS off the frame" note="OCRs the lat/long your camera burns into the picture." />
+              <div style={{ height: 14 }} />
+              <Toggle on={geocode} disabled={busy} onChange={setGeocode} label="Look up street names" note="The only step that leaves the machine. About a second per defect." />
             </div>
-            <div className="tiny" style={{ color: color.c.muted, marginTop: 6, lineHeight: 1.55 }}>
-              The gate runs before detection: a road check and a blur check. It refuses rather than
-              guessing, because a detector trained only on roads answers confidently either way.
-            </div>
+          ) : null}
+        </div>
+      </section>
+
+      {error ? (
+        <section className="shell">
+          <div className="card" style={{ padding: 24, borderColor: '#FBDDD9', background: '#FFFBFA' }}>
+            <div className="title" style={{ color: SEV.critical.ink }}>That did not go through</div>
+            <p className="copy" style={{ marginTop: 8 }}>{error}</p>
+          </div>
+        </section>
+      ) : null}
+
+      {/* ── rejected ─────────────────────────────────────────────────── */}
+      {result?.status === 'rejected' ? (
+        <section className="shell">
+          <div className="card rise" style={{ padding: 'clamp(24px, 3vw, 40px)' }}>
+            <Eyebrow>Not assessed</Eyebrow>
+            <h2 className="display-sm" style={{ marginTop: 14, maxWidth: '20ch' }}>
+              {result.reason ?? 'This could not be assessed.'}
+            </h2>
+            <p className="copy" style={{ marginTop: 14, maxWidth: '60ch' }}>
+              Two checks run before detection: is this a road, and is it sharp enough to judge. The
+              detector refuses rather than guessing — trained only on roads, it would answer confidently
+              either way.
+            </p>
             {result.gate ? (
-              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                <Inset style={{ flex: 1 }}>
-                  <div className="num" style={{ fontSize: 18 }}>
-                    {((result.gate.road_probability ?? 0) * 100).toFixed(1)}%
-                  </div>
-                  <div className="tiny" style={{ color: color.c.muted, marginTop: 5 }}>
-                    looks like a road surface · needs 50%
-                  </div>
-                </Inset>
-                <Inset style={{ flex: 1 }}>
-                  <div className="num" style={{ fontSize: 18 }}>
-                    {(result.gate.blur_score ?? 0).toFixed(0)}
-                  </div>
-                  <div className="tiny" style={{ color: color.c.muted, marginTop: 5 }}>
-                    sharpness · needs 100
-                  </div>
-                </Inset>
+              <div style={{ display: 'flex', gap: 44, marginTop: 28, flexWrap: 'wrap' }}>
+                <Figure
+                  value={`${((result.gate.road_probability ?? 0) * 100).toFixed(1)}%`}
+                  label="looks like road · needs 50%"
+                />
+                <Figure value={(result.gate.blur_score ?? 0).toFixed(0)} label="sharpness · needs 100" />
               </div>
             ) : null}
-          </Panel>
-        ) : null}
+          </div>
+        </section>
+      ) : null}
 
-        {/* summary */}
-        {summary && result?.status === 'done' ? (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
-              {[
-                [String(summary.uniquePotholes ?? summary.itemCount), 'distinct defects', undefined],
-                [
-                  summary.overallSeverity,
-                  'worst severity found',
-                  toneColor(severityTone[summary.overallSeverity], 'light'),
-                ],
-                [String(summary.framesWithDamage ?? summary.itemCount), 'frames with damage', undefined],
-                [String(summary.framesAnalysed ?? 1), 'frames looked at', undefined],
-                [`${summary.locatedCount}`, 'carry coordinates', undefined],
-              ].map(([v, l, c]) => (
-                <Panel key={l} style={{ padding: '12px 14px' }}>
-                  <div
-                    className="num"
-                    style={{ fontSize: 24, color: (c as string) ?? color.c.ink, textTransform: 'capitalize' }}
-                  >
-                    {v}
-                  </div>
-                  <div className="tiny" style={{ color: color.c.muted, marginTop: 6 }}>
-                    {l}
-                  </div>
-                </Panel>
-              ))}
-            </div>
-
-            {saved ? (
-              <Inset
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  borderColor: 'note' in saved ? '#FAE7C6' : color.c.lineSoft,
-                  background: 'note' in saved ? '#FFFCF5' : color.c.inset,
-                }}
-              >
-                <span style={{ color: 'note' in saved ? color.amber : color.green, display: 'flex' }}>
-                  <IconCheck size={16} />
-                </span>
-                <span className="tiny" style={{ color: color.c.muted, lineHeight: 1.5 }}>
-                  {'note' in saved
+      {/* ── result ───────────────────────────────────────────────────── */}
+      {summary && result?.status === 'done' ? (
+        <>
+          <section className="shell rise">
+            <SectionHead
+              kicker="Result"
+              title={
+                items.length === 0
+                  ? 'This road reads clean.'
+                  : `${summary.uniquePotholes ?? items.length} defect${
+                      (summary.uniquePotholes ?? items.length) === 1 ? '' : 's'
+                    } found.`
+              }
+              sub={
+                saved && 'stored' in saved
+                  ? `Saved to the road map — ${saved.located} of ${saved.stored} with coordinates. Anyone routing through here now gets warned.`
+                  : saved && 'note' in saved
                     ? saved.note
-                    : `Saved to the road database — ${saved.stored} distinct defect${
-                        saved.stored === 1 ? '' : 's'
-                      }, ${saved.located} with coordinates. Anyone routing through here now gets warned.`}
-                </span>
-              </Inset>
-            ) : null}
-
-            <Panel flush>
-              <PanelHead
-                title={`${items.length} frame${items.length === 1 ? '' : 's'} worth reporting`}
-                sub={
-                  summary.gpsSource === 'frame-overlay-ocr'
-                    ? 'Coordinates read off the burned-in camera overlay, frame-synced by construction'
-                    : summary.gpsSource === 'gps-log'
-                      ? 'Coordinates from the GPS log'
-                      : 'No coordinates on this footage'
-                }
-                right={
-                  summary.totalDetections != null ? (
-                    <Chip tone="neutral">{summary.totalDetections} raw sightings</Chip>
-                  ) : null
-                }
-              />
-              <PanelBody style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {items.length === 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '18px 4px' }}>
-                    <span style={{ color: color.green, display: 'flex' }}>
-                      <IconCheck size={18} />
-                    </span>
-                    <span className="sub" style={{ color: color.c.muted }}>
-                      No visible damage above the confidence threshold. This stretch reads clean.
-                    </span>
-                  </div>
-                ) : (
-                  items.map((it, i) => <ItemRow key={it.id} item={it} last={i === items.length - 1} />)
-                )}
-              </PanelBody>
-            </Panel>
-          </>
-        ) : null}
-
-        {result?.disclaimer ? (
-          <p className="tiny" style={{ color: color.c.dim, lineHeight: 1.55, padding: '0 2px 8px' }}>
-            {result.disclaimer}
-          </p>
-        ) : null}
-      </div>
-
-      {/* ── right: settings and notes ───────────────────────────────── */}
-      <div
-        className="rs-fixed"
-        style={{ width: 332, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}
-      >
-        <Panel>
-          <PanelHead title="How hard to look" />
-          <PanelBody>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <span className="lbl" style={{ color: color.c.muted }}>
-                Confidence threshold
-              </span>
-              <span className="mono">{conf.toFixed(2)}</span>
-            </div>
-            <input
-              type="range"
-              min={0.05}
-              max={0.8}
-              step={0.05}
-              value={conf}
-              disabled={busy}
-              onChange={(e) => setConf(Number(e.target.value))}
-              style={{ width: '100%', marginTop: 10, accentColor: '#0A0A0A' }}
+                    : undefined
+              }
             />
-            <div className="tiny" style={{ color: color.c.muted, marginTop: 7, lineHeight: 1.5 }}>
-              Lower finds more damage and more false positives. 0.35 is the tuned default.
-            </div>
-
-            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <Toggle
-                on={readGps}
-                disabled={busy}
-                onChange={setReadGps}
-                label="Read GPS off the frame"
-                note="OCRs the lat/long your camera burns into the picture."
+            <div style={{ height: 30 }} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 28 }}>
+              <Figure
+                value={summary.overallSeverity}
+                label="worst severity"
+                tint={SEV[summary.overallSeverity].ink}
               />
-              <Toggle
-                on={geocode}
-                disabled={busy}
-                onChange={setGeocode}
-                label="Look up street names"
-                note="The only step that leaves the machine. ~1 second per defect."
-              />
+              <Figure value={summary.framesWithDamage ?? items.length} label="frames with damage" />
+              <Figure value={summary.framesAnalysed ?? 1} label="frames read" />
+              <Figure value={summary.locatedCount} label="carry coordinates" />
             </div>
-          </PanelBody>
-        </Panel>
+          </section>
 
-        <Panel>
-          <PanelHead title="What the detector is" />
-          <PanelBody style={{ paddingTop: 8 }}>
-            <p className="tiny" style={{ color: color.c.muted, lineHeight: 1.6 }}>
-              Two models: one for cracks, one for potholes. Fine-tuned to mAP@50 0.700 on 149 held-out
-              images. A defect visible for a second gets about twelve independent looks, so a clip is
-              far more reliable than a single photo.
-            </p>
-            <Inset style={{ marginTop: 11, display: 'flex', gap: 9, alignItems: 'center' }}>
-              <span style={{ color: color.c.muted, display: 'flex' }}>
-                <IconCloud size={16} />
-              </span>
-              <span className="tiny" style={{ color: color.c.muted }}>
-                {service === 'up' ? gpu : service === 'down' ? 'Cannot reach the detector' : 'Checking…'}
-              </span>
-            </Inset>
-            <p className="tiny" style={{ color: color.c.dim, lineHeight: 1.6, marginTop: 11 }}>
-              Training data is paved roads. On unpaved surfaces it misses a lot, and lowering the
-              threshold does not fix that.
-            </p>
-          </PanelBody>
-        </Panel>
-      </div>
+          {items.length ? (
+            <section className="shell" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+              {items.map((it) => (
+                <FrameCard key={it.id} item={it} />
+              ))}
+            </section>
+          ) : (
+            <section className="shell">
+              <div className="card" style={{ padding: 30, display: 'flex', alignItems: 'center', gap: 14 }}>
+                <span style={{ color: SEV.good.ink, display: 'flex' }}>
+                  <IconCheck size={22} />
+                </span>
+                <p className="copy" style={{ margin: 0 }}>
+                  No visible damage above the confidence threshold. This stretch reads clean.
+                </p>
+              </div>
+            </section>
+          )}
+        </>
+      ) : null}
+
+      {result?.disclaimer ? (
+        <section className="shell">
+          <p className="copy" style={{ fontSize: 13, color: 'var(--ink-3)' }}>{result.disclaimer}</p>
+        </section>
+      ) : null}
+
+      {!file && !result ? (
+        <section className="shell">
+          <Empty
+            kicker="Why it matters"
+            title="Twelve looks beat one photo"
+            body="A defect visible for a second gets about twelve independent chances in a clip. Single frames miss things; footage rarely does."
+          />
+        </section>
+      ) : null}
     </div>
   );
 }
 
-/* ── one damaged frame ───────────────────────────────────────────── */
-
-function ItemRow({ item, last }: { item: AnalyzeItem; last: boolean }) {
-  const tone = severityTone[item.severity];
+function FrameCard({ item }: { item: AnalyzeItem }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 13,
-        padding: '12px 0',
-        borderBottom: last ? undefined : '1px solid #F5F5F5',
-        alignItems: 'flex-start',
-      }}
-    >
-      <a
-        href={item.imageUrl}
-        target="_blank"
-        rel="noreferrer"
-        style={{
-          width: 132,
-          height: 84,
-          borderRadius: 8,
-          overflow: 'hidden',
-          background: color.c.inset,
-          border: `1px solid ${color.c.line}`,
-          flexShrink: 0,
-          display: 'block',
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={item.imageUrl}
-          alt={`${item.severityLabel} damage, ${item.detectionCount} detections`}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-      </a>
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <Chip tone={tone} dot>
-            {item.severityLabel}
-          </Chip>
-          {item.timestamp ? <span className="mono">{item.timestamp}</span> : null}
-          <span className="tiny" style={{ color: color.c.muted }}>
-            {item.detectionCount} detection{item.detectionCount === 1 ? '' : 's'} ·{' '}
-            {(item.confidence * 100).toFixed(0)}% on the one that set the severity
-          </span>
+    <article className="card" style={{ padding: 12, overflow: 'hidden' }}>
+      <a href={item.imageUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+        <div className="shot" style={{ aspectRatio: '4 / 3', borderRadius: 14 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={item.imageUrl} alt={`${item.severityLabel} damage`} />
+          <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}>
+            <SevBadgeOnShot severity={item.severity}>{item.severityLabel}</SevBadgeOnShot>
+          </div>
         </div>
-
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+      </a>
+      <div style={{ padding: '15px 6px 6px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+          <span className="title">{item.detectionCount} detection{item.detectionCount === 1 ? '' : 's'}</span>
+          {item.timestamp ? <Eyebrow>{item.timestamp}</Eyebrow> : null}
+        </div>
+        <div style={{ display: 'flex', gap: 7, marginTop: 12, flexWrap: 'wrap' }}>
           {item.detections.map((d, i) => (
-            <Chip key={i} tone="neutral">
-              {CLASS_LABEL[d.damageClass] ?? d.damageClass} · {(d.confidence * 100).toFixed(0)}%
-              {d.trackId != null ? ` · #${d.trackId}` : ''}
-            </Chip>
+            <span
+              key={i}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                padding: '0 11px',
+                borderRadius: 999,
+                border: '1px solid var(--hairline)',
+                fontSize: 12.5,
+                fontWeight: 500,
+              }}
+            >
+              {CLASS_LABEL[d.damageClass] ?? d.damageClass}
+              <span style={{ color: 'var(--ink-3)' }}>{(d.confidence * 100).toFixed(0)}%</span>
+            </span>
           ))}
         </div>
-
         {item.coordinates ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            <span style={{ color: color.c.dim, display: 'flex' }}>
-              <IconMap size={13} />
-            </span>
-            <span className="mono" style={{ color: color.c.muted }}>
-              {item.coordinates.lat.toFixed(5)}, {item.coordinates.lng.toFixed(5)}
-            </span>
-            {item.address ? (
-              <span className="tiny" style={{ color: color.c.muted }}>
-                · {item.address}
-              </span>
-            ) : null}
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Eyebrow>
+              {item.coordinates.lat.toFixed(4)}, {item.coordinates.lng.toFixed(4)}
+            </Eyebrow>
             {item.mapsUrl ? (
               <a
                 href={item.mapsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="tiny"
-                style={{ color: color.blue, textDecoration: 'none' }}
+                style={{ fontSize: 12.5, fontWeight: 600, color: '#175CD3', textDecoration: 'none' }}
               >
-                Open in Maps
+                Maps
               </a>
             ) : null}
           </div>
         ) : (
-          <div className="tiny" style={{ color: color.c.dim, marginTop: 8 }}>
-            No coordinates on this frame
+          <div style={{ marginTop: 12 }}>
+            <Eyebrow>No coordinates on this frame</Eyebrow>
           </div>
         )}
+        {item.address ? (
+          <p className="copy" style={{ fontSize: 13, marginTop: 8 }}>{item.address}</p>
+        ) : null}
       </div>
-    </div>
+    </article>
   );
 }
-
-/* ── toggle ──────────────────────────────────────────────────────── */
 
 function Toggle({
   on,
@@ -666,49 +540,46 @@ function Toggle({
       onClick={() => onChange(!on)}
       style={{
         display: 'flex',
-        gap: 10,
+        gap: 13,
         alignItems: 'flex-start',
         textAlign: 'left',
         background: 'transparent',
         border: 'none',
         padding: 0,
+        width: '100%',
         cursor: disabled ? 'default' : 'pointer',
         fontFamily: 'inherit',
-        opacity: disabled ? 0.55 : 1,
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       <span
         aria-hidden
         style={{
-          width: 30,
-          height: 18,
-          borderRadius: 99,
-          background: on ? '#0A0A0A' : color.c.track,
-          border: `1px solid ${on ? '#0A0A0A' : color.c.border}`,
+          width: 42,
+          height: 25,
+          borderRadius: 999,
+          background: on ? 'var(--ink)' : '#E4E1DC',
           flexShrink: 0,
-          marginTop: 1,
           position: 'relative',
+          transition: 'background 0.22s var(--ease)',
         }}
       >
         <span
           style={{
             position: 'absolute',
-            top: 2,
-            left: on ? 14 : 2,
-            width: 12,
-            height: 12,
+            top: 3,
+            left: on ? 20 : 3,
+            width: 19,
+            height: 19,
             borderRadius: '50%',
-            background: '#FFF',
+            background: '#fff',
+            transition: 'left 0.22s var(--ease)',
           }}
         />
       </span>
       <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 500, letterSpacing: '-0.011em' }}>
-          {label}
-        </span>
-        <span className="tiny" style={{ color: color.c.muted, display: 'block', marginTop: 3, lineHeight: 1.45 }}>
-          {note}
-        </span>
+        <span style={{ display: 'block', fontSize: 15, fontWeight: 600, letterSpacing: '-0.014em' }}>{label}</span>
+        <span className="copy" style={{ display: 'block', fontSize: 13.5, marginTop: 3 }}>{note}</span>
       </span>
     </button>
   );

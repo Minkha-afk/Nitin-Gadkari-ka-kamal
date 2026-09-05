@@ -1,110 +1,145 @@
 'use client';
 
+/**
+ * Citizen navigation.
+ *
+ * Desktop: a slim sticky bar that blurs the page behind it, with the active
+ * item marked by a filled pill rather than an underline — closer to how a
+ * shopping app marks a tab than how a dashboard marks a route.
+ *
+ * Mobile: the bar keeps only the wordmark and the primary action, and the
+ * sections move to a bottom tab bar where a thumb can reach them.
+ */
+
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Brand from './Brand';
-import { Avatar } from '@/components/system';
-import { color } from '@/lib/tokens';
-import { IconBell, IconSearch } from './Icons';
+import { IconCar, IconList, IconMap, IconShield, IconUp } from './Icons';
 
 const NAV = [
-  { href: '/', label: 'Home' },
-  { href: '/drive', label: 'Drive' },
-  { href: '/upload', label: 'Upload' },
-  { href: '/routes', label: 'Routes' },
-  { href: '/reports', label: 'My reports' },
-  { href: '/board', label: 'Ward board' },
+  { href: '/', label: 'Home', Icon: IconMap },
+  { href: '/routes', label: 'Routes', Icon: IconCar },
+  { href: '/upload', label: 'Upload', Icon: IconUp },
+  { href: '/reports', label: 'Reports', Icon: IconList },
+  { href: '/board', label: 'Board', Icon: IconShield },
 ];
+
+function isActive(path: string, href: string) {
+  return href === '/' ? path === '/' : path.startsWith(href);
+}
 
 export default function TopNav() {
   const path = usePathname();
+
   return (
-    <header
-      style={{
-        height: 60,
-        flexShrink: 0,
-        background: '#FFF',
-        borderBottom: `1px solid ${color.c.line}`,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 28,
-        padding: '0 28px',
-      }}
-    >
-      <Link href="/" aria-label="RoadSense home">
-        <Brand theme="light" />
-      </Link>
-      <nav aria-label="Main" style={{ display: 'flex', alignItems: 'center', gap: 22, height: '100%' }}>
+    <>
+      <header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 60,
+          flexShrink: 0,
+          background: 'rgba(250, 249, 247, 0.82)',
+          backdropFilter: 'saturate(150%) blur(14px)',
+          WebkitBackdropFilter: 'saturate(150%) blur(14px)',
+          borderBottom: '1px solid var(--hairline)',
+        }}
+      >
+        <div
+          className="shell"
+          style={{ height: 66, display: 'flex', alignItems: 'center', gap: 26 }}
+        >
+          <Link href="/" aria-label="RoadSense home" style={{ display: 'flex' }}>
+            <Brand theme="light" />
+          </Link>
+
+          <nav aria-label="Main" className="hide-sm" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {NAV.filter((n) => n.href !== '/upload').map((n) => {
+              const active = isActive(path, n.href);
+              return (
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  aria-current={active ? 'page' : undefined}
+                  style={{
+                    height: 36,
+                    padding: '0 15px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    borderRadius: 999,
+                    fontSize: 14,
+                    fontWeight: active ? 650 : 500,
+                    letterSpacing: '-0.014em',
+                    textDecoration: 'none',
+                    color: active ? '#fff' : 'var(--ink-2)',
+                    background: active ? 'var(--ink)' : 'transparent',
+                    transition: 'background 0.22s var(--ease), color 0.22s var(--ease)',
+                  }}
+                >
+                  {n.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <span style={{ flex: 1 }} />
+
+          <Link
+            href="/upload"
+            className="pill pill-mark pill-sm"
+            style={{ textDecoration: 'none' }}
+          >
+            <IconUp size={14} />
+            Send a road
+          </Link>
+        </div>
+      </header>
+
+      {/* thumb-reach tabs */}
+      <nav
+        aria-label="Sections"
+        className="only-sm"
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 70,
+          background: 'rgba(250, 249, 247, 0.94)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderTop: '1px solid var(--hairline)',
+          display: 'flex',
+          padding: '8px 6px calc(8px + env(safe-area-inset-bottom))',
+        }}
+      >
         {NAV.map((n) => {
-          const active = n.href === '/' ? path === '/' : path.startsWith(n.href);
+          const active = isActive(path, n.href);
           return (
             <Link
               key={n.href}
               href={n.href}
               aria-current={active ? 'page' : undefined}
               style={{
-                fontSize: 13.5,
-                letterSpacing: '-0.011em',
-                fontWeight: active ? 600 : 500,
-                color: active ? color.c.ink : color.c.muted,
-                textDecoration: 'none',
-                height: '100%',
+                flex: 1,
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                borderBottom: active ? '2px solid #0A0A0A' : '2px solid transparent',
+                gap: 4,
+                padding: '6px 0',
+                textDecoration: 'none',
+                color: active ? 'var(--ink)' : 'var(--ink-3)',
               }}
             >
-              {n.label}
+              <n.Icon size={19} />
+              <span style={{ fontSize: 10, fontWeight: active ? 650 : 500, letterSpacing: '-0.005em' }}>
+                {n.label}
+              </span>
             </Link>
           );
         })}
       </nav>
-      <div style={{ flex: 1 }} />
-      <div
-        style={{
-          width: 230,
-          height: 34,
-          borderRadius: 9,
-          background: color.c.inset,
-          border: `1px solid ${color.c.line}`,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '0 11px',
-          color: color.c.dim,
-        }}
-      >
-        <IconSearch size={15} />
-        <span style={{ fontSize: 12.5, letterSpacing: '-0.011em' }}>Search a road or locality</span>
-      </div>
-      <button
-        type="button"
-        aria-label="Notifications, 1 unread"
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: color.c.muted,
-          cursor: 'pointer',
-          position: 'relative',
-          display: 'flex',
-        }}
-      >
-        <IconBell size={18} />
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            top: -1,
-            right: -1,
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: color.red,
-          }}
-        />
-      </button>
-      <Avatar initials="AB" />
-    </header>
+    </>
   );
 }

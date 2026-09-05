@@ -1,296 +1,254 @@
 'use client';
 
+/**
+ * Your reports.
+ *
+ * The old version led with five counters and a table. This leads with the one
+ * number that means anything — what actually got fixed because of you — and
+ * shows each ticket as its photograph plus a progress track, because "assigned"
+ * means nothing next to a picture of the hole and how long it has been open.
+ */
+
 import React from 'react';
-import Link from 'next/link';
-import { Bar, Btn, Chip, Inset, Panel, PanelBody, PanelHead } from '@/components/system';
+import { Divider, Empty, Eyebrow, Figure, Pill, SectionHead, SevBadgeOnShot, SEV, ago } from './ui';
 import type { MyDefect, MyReports, MyTicket } from '@/lib/reports';
-import { color, severityColor, severityTone, toneColor } from '@/lib/tokens';
 import { CLASS_LABEL, type TicketState } from '@/lib/types';
 
-const STATE_TONE: Record<TicketState, 'red' | 'amber' | 'blue' | 'green' | 'neutral' | 'brand'> = {
-  new: 'brand',
-  acknowledged: 'blue',
-  assigned: 'blue',
-  repaired: 'amber',
-  verified: 'green',
-  closed: 'green',
-  reopened: 'red',
-};
+/** The journey a ticket takes, so a row can show where it has got to. */
+const TRACK: { state: TicketState; label: string }[] = [
+  { state: 'new', label: 'Reported' },
+  { state: 'acknowledged', label: 'Seen' },
+  { state: 'assigned', label: 'Assigned' },
+  { state: 'repaired', label: 'Repaired' },
+  { state: 'verified', label: 'Verified' },
+];
 
-const STATE_LABEL: Record<TicketState, string> = {
+const STATE_COPY: Record<TicketState, string> = {
   new: 'Waiting to be seen',
   acknowledged: 'Acknowledged',
   assigned: 'Contractor assigned',
-  repaired: 'Repaired, not verified',
+  repaired: 'Repaired, not yet verified',
   verified: 'Verified fixed',
   closed: 'Closed',
-  reopened: 'Damage came back',
+  reopened: 'The damage came back',
 };
-
-const TH: React.CSSProperties = {
-  color: color.c.muted,
-  padding: '0 10px 9px',
-  borderBottom: `1px solid ${color.c.line}`,
-};
-const TD: React.CSSProperties = {
-  padding: '10px',
-  borderBottom: '1px solid #F5F5F5',
-  color: color.c.ink,
-  verticalAlign: 'middle',
-};
-
-function when(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
-}
 
 export default function ReportsClient({ data }: { data: MyReports }) {
   const { totals, tickets, defects, following } = data;
   const nothing = totals.defects === 0 && totals.uploads === 0;
 
-  return (
-    <div
-      className="scrollarea rs-row"
-      style={{ padding: '20px 28px', display: 'flex', gap: 18, flex: 1, alignItems: 'flex-start' }}
-    >
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20 }}>
-          <div>
-            <h1 className="h1">Your reports</h1>
-            <p className="sub" style={{ color: color.c.muted, marginTop: 7 }}>
-              {nothing
-                ? 'Nothing sent in from this browser yet.'
-                : `${totals.defects} defect${totals.defects === 1 ? '' : 's'} from ${totals.uploads} upload${
-                    totals.uploads === 1 ? '' : 's'
-                  }, ${totals.tickets} of them raised as tickets.`}
-            </p>
-          </div>
-          <Link href="/upload">
-            <Btn primary>Send in a road</Btn>
-          </Link>
+  if (nothing) {
+    return (
+      <div className="shell stack-lg" style={{ paddingTop: 56 }}>
+        <div>
+          <Eyebrow>Your reports</Eyebrow>
+          <h1 className="display" style={{ marginTop: 16, maxWidth: '14ch' }}>
+            Nothing sent in yet.
+          </h1>
         </div>
+        <Empty
+          kicker="Start here"
+          title="Your first road takes a minute"
+          body="Upload a photo or a clip and every defect found in it is kept here — with the frame it was found in, where it was, and what happened after you reported it."
+          action={<Pill variant="mark" href="/upload">Send in a road</Pill>}
+        />
+      </div>
+    );
+  }
 
-        {!data.configured ? (
-          <Panel style={{ padding: '12px 15px', borderColor: '#FAE7C6', background: '#FFFCF5' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#B45E09' }}>No road database connected</div>
-            <div className="tiny" style={{ color: color.c.muted, marginTop: 5 }}>
-              Set MONGODB_URI in .env.local.
-            </div>
-          </Panel>
+  return (
+    <div className="stack-xl" style={{ paddingTop: 48 }}>
+      {/* ── headline ─────────────────────────────────────────────────── */}
+      <section className="shell">
+        <Eyebrow>Your reports</Eyebrow>
+        <h1 className="display" style={{ marginTop: 16, maxWidth: '16ch' }}>
+          {totals.fixed > 0
+            ? `${totals.fixed} road${totals.fixed === 1 ? '' : 's'} fixed because you filmed ${totals.fixed === 1 ? 'it' : 'them'}.`
+            : `${totals.defects} defect${totals.defects === 1 ? '' : 's'} on record because of you.`}
+        </h1>
+        <p className="lede" style={{ marginTop: 18 }}>
+          {totals.tickets > 0
+            ? `${totals.tickets} of them became tickets an authority is held to. ${totals.open} still open.`
+            : 'None were severe enough to open a ticket automatically — only high and critical damage escalates on its own.'}
+        </p>
+
+        <div style={{ height: 40 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 28 }}>
+          <Figure value={totals.defects} label="defects sent" />
+          <Figure value={totals.tickets} label="became tickets" />
+          <Figure value={totals.fixed} label="fixed" tint={totals.fixed ? SEV.good.ink : undefined} />
+          <Figure value={totals.breached} label="past deadline" tint={totals.breached ? SEV.critical.ink : undefined} />
+          <Figure value={data.medianFixDays != null ? `${data.medianFixDays}d` : '—'} label="median fix" />
+        </div>
+      </section>
+
+      {/* ── tickets ──────────────────────────────────────────────────── */}
+      <section className="shell stack-lg">
+        <SectionHead
+          kicker="Tickets"
+          title="What happened next"
+          sub={tickets.length ? undefined : 'Severe damage opens a ticket automatically. Nothing you sent reached that bar.'}
+        />
+        {tickets.length ? (
+          <div className="stack-md">
+            {tickets.map((t) => (
+              <TicketCard key={t.id} t={t} />
+            ))}
+          </div>
         ) : null}
+      </section>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
-          {[
-            [String(totals.defects), 'defects sent', undefined],
-            [String(totals.tickets), 'became tickets', undefined],
-            [String(totals.fixed), 'marked fixed', totals.fixed ? color.green : undefined],
-            [String(totals.breached), 'past deadline', totals.breached ? color.red : undefined],
-            [data.medianFixDays != null ? `${data.medianFixDays} d` : '—', 'median time to fix', undefined],
-          ].map(([v, l, c]) => (
-            <Panel key={l as string} style={{ padding: '12px 14px' }}>
-              <div className="num" style={{ fontSize: 26, color: (c as string) ?? color.c.ink }}>
-                {v}
-              </div>
-              <div className="tiny" style={{ color: color.c.muted, marginTop: 6 }}>
-                {l}
-              </div>
-            </Panel>
+      {following.length ? (
+        <section className="shell stack-lg">
+          <SectionHead kicker="Following" title="Raised by someone else" />
+          <div className="stack-md">
+            {following.map((t) => (
+              <TicketCard key={t.id} t={t} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* ── the vault ────────────────────────────────────────────────── */}
+      <section className="stack-lg">
+        <div className="shell">
+          <SectionHead
+            kicker="Evidence"
+            title="Everything you have filmed"
+            sub="Timestamped and geotagged. Useful the day a claim needs it."
+          />
+        </div>
+        <div className="rail shell">
+          {defects.map((d) => (
+            <VaultCard key={d.id} d={d} />
           ))}
         </div>
+      </section>
 
-        <Panel flush>
-          <PanelHead
-            title="Tickets raised from your reports"
-            sub={
-              tickets.length
-                ? 'Severe damage opens a ticket automatically. Milder damage is stored but not escalated.'
-                : undefined
-            }
-          />
-          {tickets.length ? (
-            <div style={{ padding: '12px 12px 6px' }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col" style={{ ...TH, width: 64 }}>Evidence</th>
-                    <th scope="col" style={TH}>Ticket</th>
-                    <th scope="col" style={TH}>Where</th>
-                    <th scope="col" style={TH}>Status</th>
-                    <th scope="col" style={{ ...TH, textAlign: 'right' }}>SLA</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tickets.map((t) => (
-                    <TicketRow key={t.id} t={t} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <PanelBody>
-              <p className="sub" style={{ color: color.c.muted, lineHeight: 1.6 }}>
-                {nothing
-                  ? 'Upload a road and anything severe found in it opens a ticket here, with a deadline the authority is held to.'
-                  : 'Nothing you have sent in was severe enough to open a ticket automatically. Only high and critical damage escalates on its own.'}
-              </p>
-            </PanelBody>
-          )}
-        </Panel>
-
-        {following.length ? (
-          <Panel flush>
-            <PanelHead title="Tickets you follow" sub="Raised by someone else" />
-            <div style={{ padding: '12px 12px 6px' }}>
-              <table>
-                <tbody>
-                  {following.map((t) => (
-                    <TicketRow key={t.id} t={t} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Panel>
-        ) : null}
-      </div>
-
-      {/* right */}
-      <div
-        className="rs-fixed"
-        style={{ width: 352, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}
-      >
-        <Panel>
-          <PanelHead title="Evidence vault" sub="Timestamped, geotagged, kept" />
-          <PanelBody style={{ paddingTop: 8 }}>
-            {defects.length ? (
-              defects.slice(0, 6).map((d, i) => <VaultRow key={d.id} d={d} last={i === Math.min(5, defects.length - 1)} />)
-            ) : (
-              <p className="tiny" style={{ color: color.c.muted, lineHeight: 1.6 }}>
-                Nothing stored from this browser yet. Every defect found in something you upload is kept
-                here with the frame it was found in and, where the footage carries it, the coordinates.
-              </p>
-            )}
-          </PanelBody>
-        </Panel>
-
-        <Panel>
-          <PanelHead title="What you found, by type" />
-          <PanelBody>
-            {data.byClass.length ? (
-              data.byClass.map((c) => (
-                <div key={c.damageClass} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
-                  <span style={{ flex: 1, fontSize: 12.5 }}>{CLASS_LABEL[c.damageClass] ?? c.damageClass}</span>
-                  <Bar value={(c.count / totals.defects) * 100} width={110} color={color.c.ink} />
-                  <span className="num" style={{ fontSize: 14, width: 26, textAlign: 'right' }}>
-                    {c.count}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="tiny" style={{ color: color.c.muted }}>Nothing classified yet.</p>
-            )}
-
-            {data.bySeverity.length ? (
-              <div style={{ marginTop: 12, borderTop: `1px solid ${color.c.lineSoft}`, paddingTop: 10 }}>
-                {data.bySeverity.map((s) => (
-                  <div key={s.severity} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
-                    <span style={{ flex: 1, fontSize: 12.5, textTransform: 'capitalize' }}>{s.severity}</span>
-                    <Bar
-                      value={(s.count / totals.defects) * 100}
-                      width={110}
-                      color={severityColor(s.severity, 'light')}
-                    />
-                    <span className="num" style={{ fontSize: 14, width: 26, textAlign: 'right' }}>
-                      {s.count}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </PanelBody>
-        </Panel>
-
-        <Panel>
-          <PanelHead title="Whose reports are these?" />
-          <PanelBody>
-            <Inset>
-              <p className="tiny" style={{ color: color.c.muted, lineHeight: 1.6 }}>
-                This page is scoped to <strong>this browser</strong>, not to an account — there are no
-                logins yet. Uploads from another browser or after clearing cookies start a separate
-                history, and there is no way to merge them.
-              </p>
-            </Inset>
-          </PanelBody>
-        </Panel>
-      </div>
-    </div>
-  );
-}
-
-function TicketRow({ t }: { t: MyTicket }) {
-  const tone = t.urgency === 'breached' ? 'red' : t.urgency === 'soon' ? 'amber' : 'neutral';
-  return (
-    <tr>
-      <td style={TD}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={t.imageUrl}
-          alt=""
-          style={{ width: 52, height: 34, objectFit: 'cover', borderRadius: 6, border: `1px solid ${color.c.line}` }}
-        />
-      </td>
-      <td style={TD}>
-        <span className="mono">{t.id}</span>
-      </td>
-      <td style={TD}>
-        <div style={{ fontWeight: 500 }}>{t.address ?? 'location not resolved'}</div>
-        <div className="tiny" style={{ color: color.c.muted, marginTop: 3 }}>
-          {CLASS_LABEL[t.damageClass] ?? t.damageClass} · {t.severityLabel} · first sent {when(t.createdAt)}
-          {t.passes > 1 ? ` · ${t.passes} sightings` : ''}
+      {/* ── honest footer ────────────────────────────────────────────── */}
+      <section className="shell">
+        <div className="card" style={{ padding: 26 }}>
+          <Eyebrow>Whose reports are these</Eyebrow>
+          <p className="copy" style={{ marginTop: 12, maxWidth: '64ch' }}>
+            This page is scoped to <strong style={{ color: 'var(--ink)' }}>this browser</strong>, not an
+            account — there are no logins yet. Uploads from another browser, or after clearing cookies,
+            start a separate history, and there is no way to merge them.
+          </p>
         </div>
-      </td>
-      <td style={TD}>
-        <Chip tone={STATE_TONE[t.state]}>{STATE_LABEL[t.state]}</Chip>
-      </td>
-      <td style={{ ...TD, textAlign: 'right', color: toneColor(tone, 'light') }}>{t.dueLabel}</td>
-    </tr>
+      </section>
+    </div>
   );
 }
 
-function VaultRow({ d, last }: { d: MyDefect; last: boolean }) {
+function TicketCard({ t }: { t: MyTicket }) {
+  const reached = TRACK.findIndex((s) => s.state === t.state);
+  const settled = t.state === 'closed' || t.state === 'verified';
+  const stepIndex = t.state === 'closed' ? TRACK.length - 1 : t.state === 'reopened' ? 0 : reached;
+  const dueTint =
+    t.urgency === 'breached' ? SEV.critical.ink : t.urgency === 'soon' ? SEV.medium.ink : 'var(--ink-3)';
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 11,
-        alignItems: 'center',
-        padding: '10px 0',
-        borderBottom: last ? undefined : '1px solid #F5F5F5',
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={d.imageUrl}
-        alt=""
-        style={{ width: 64, height: 42, objectFit: 'cover', borderRadius: 7, border: `1px solid ${color.c.line}` }}
-      />
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 12.5, letterSpacing: '-0.011em' }}>
-          {CLASS_LABEL[d.damageClass] ?? d.damageClass}
-          {d.address ? ` · ${d.address}` : ''}
-        </span>
-        <span className="mono" style={{ color: color.c.muted, display: 'block', marginTop: 4 }}>
-          {new Date(d.createdAt).toLocaleString(undefined, {
-            day: '2-digit',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
+    <article className="card" style={{ padding: 16, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+      <div className="shot" style={{ width: 168, aspectRatio: '4 / 3', borderRadius: 14, flexShrink: 0 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={t.imageUrl} alt="" />
+        <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 2 }}>
+          <SevBadgeOnShot severity={t.severity}>{t.severityLabel}</SevBadgeOnShot>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+          <h3 className="title">{t.address ?? CLASS_LABEL[t.damageClass]}</h3>
+          <Eyebrow>{t.id}</Eyebrow>
+        </div>
+        <p className="copy" style={{ marginTop: 7, fontSize: 13.5 }}>
+          {CLASS_LABEL[t.damageClass] ?? t.damageClass} · reported {ago(t.createdAt)}
+          {t.passes > 1 ? ` · seen on ${t.passes} passes` : ''}
+        </p>
+
+        {/* progress track */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 18 }}>
+          {TRACK.map((s, i) => {
+            const done = stepIndex >= i && !(t.state === 'reopened' && i > 0);
+            return (
+              <div key={s.state} style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    height: 4,
+                    borderRadius: 999,
+                    background: done
+                      ? t.state === 'reopened'
+                        ? SEV.critical.ink
+                        : settled
+                          ? SEV.good.ink
+                          : 'var(--ink)'
+                      : '#E8E5E0',
+                    transition: 'background 0.3s var(--ease)',
+                  }}
+                />
+                <div
+                  className="eyebrow"
+                  style={{
+                    display: 'block',
+                    marginTop: 8,
+                    fontSize: 9.5,
+                    letterSpacing: '0.1em',
+                    color: done ? 'var(--ink-2)' : 'var(--ink-3)',
+                  }}
+                >
+                  {s.label}
+                </div>
+              </div>
+            );
           })}
-        </span>
-        <span className="mono" style={{ color: color.c.dim, display: 'block', marginTop: 2 }}>
-          {d.lat != null && d.lng != null ? `${d.lat.toFixed(4)}°N ${d.lng.toFixed(4)}°E` : 'no coordinates'}
-        </span>
-      </span>
-      <Chip tone={severityTone[d.severity]}>{d.severityLabel}</Chip>
-    </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 650,
+              color: t.state === 'reopened' ? SEV.critical.ink : settled ? SEV.good.ink : 'var(--ink)',
+            }}
+          >
+            {STATE_COPY[t.state]}
+          </span>
+          <span style={{ width: 3, height: 3, borderRadius: 999, background: 'var(--ink-3)' }} />
+          <span style={{ fontSize: 14, fontWeight: 600, color: dueTint }}>{t.dueLabel}</span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function VaultCard({ d }: { d: MyDefect }) {
+  return (
+    <article className="card card-interactive" style={{ width: 236, padding: 10 }}>
+      <div className="shot" style={{ aspectRatio: '1 / 1', borderRadius: 12 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={d.imageUrl} alt="" />
+      </div>
+      <div style={{ padding: '12px 5px 4px' }}>
+        <div style={{ fontSize: 14, fontWeight: 650, letterSpacing: '-0.014em' }}>
+          {CLASS_LABEL[d.damageClass] ?? d.damageClass}
+        </div>
+        <div
+          style={{
+            fontSize: 12.5,
+            color: 'var(--ink-2)',
+            marginTop: 5,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {d.address ?? (d.lat != null && d.lng != null ? `${d.lat.toFixed(4)}, ${d.lng.toFixed(4)}` : 'no coordinates')}
+        </div>
+        <div style={{ marginTop: 9 }}>
+          <Eyebrow>{ago(d.createdAt)}</Eyebrow>
+        </div>
+      </div>
+    </article>
   );
 }

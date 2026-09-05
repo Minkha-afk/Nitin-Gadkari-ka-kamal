@@ -1,32 +1,32 @@
 'use client';
 
 /**
- * Two places, every way OSRM will drive between them, ranked by what the
- * surface is actually like rather than by time alone.
+ * Route comparison.
+ *
+ * The decision this page exists for is one trade: minutes against potholes.
+ * So the options are big cards that say the trade out loud — "4 min slower,
+ * nine fewer defects" — rather than a table of metrics to work out yourself.
  */
 
 import React from 'react';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Btn, Chip, Inset, Panel, PanelBody, PanelHead } from '@/components/system';
 import PlaceField from '@/components/data/PlaceField';
-import { IconSearch } from '@/components/chrome/Icons';
+import { Empty, Eyebrow, Figure, Pill, SectionHead, SEV } from './ui';
 import type { CompareResponse, RouteOption } from '@/app/api/routes/compare/route';
 import type { Stretch } from '@/lib/overview';
 import { formatDistance, formatDuration } from '@/lib/geo';
-import { color, severityTone, toneColor } from '@/lib/tokens';
 import { CLASS_LABEL } from '@/lib/types';
 
 const TripMap = dynamic(() => import('@/components/data/TripMap'), {
   ssr: false,
-  loading: () => <div style={{ height: 430, background: color.c.inset, borderRadius: 12 }} />,
+  loading: () => <div style={{ height: 460, background: '#EFEDE9', borderRadius: 20 }} />,
 });
 
-const LABEL_TONE = {
-  smoothest: 'green',
-  fastest: 'blue',
-  shortest: 'neutral',
-} as const;
+const LABEL_COPY: Record<string, string> = {
+  smoothest: 'Smoothest',
+  fastest: 'Fastest',
+  shortest: 'Shortest',
+};
 
 export default function RoutesClient({ stretches }: { stretches: Stretch[] }) {
   const [source, setSource] = React.useState('');
@@ -62,143 +62,109 @@ export default function RoutesClient({ stretches }: { stretches: Stretch[] }) {
   }
 
   return (
-    <div
-      className="scrollarea rs-row"
-      style={{ padding: '20px 28px', display: 'flex', gap: 18, flex: 1, alignItems: 'flex-start' }}
-    >
-      <div className="rs-fixed" style={{ width: 880, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <h1 className="h1">Pick the road, not just the time</h1>
-          <p className="sub" style={{ color: color.c.muted, marginTop: 7 }}>
-            Every way there, ranked by reported damage per kilometre. The quickest route is often not
-            the one you want on two wheels.
-          </p>
-        </div>
+    <div className="stack-xl" style={{ paddingTop: 48 }}>
+      <section className="shell">
+        <Eyebrow>Routes</Eyebrow>
+        <h1 className="display" style={{ marginTop: 16, maxWidth: '13ch' }}>
+          The fastest way is rarely the kindest.
+        </h1>
+        <p className="lede" style={{ marginTop: 18 }}>
+          Every way there, ranked by reported damage per kilometre — not by minutes alone.
+        </p>
 
-        <Panel>
-          <PanelBody style={{ padding: 14 }}>
-            <form onSubmit={compare} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <PlaceField label="From" value={source} onChange={setSource} placeholder="Where you start" dot="#0A0A0A" />
-              <PlaceField label="To" value={dest} onChange={setDest} placeholder="Where you are going" dot={color.mark} />
-              <Btn primary type="submit" disabled={loading || !source.trim() || !dest.trim()} style={{ height: 38 }}>
-                <IconSearch size={14} />
-                {loading ? 'Comparing…' : 'Compare routes'}
-              </Btn>
-            </form>
+        <form onSubmit={compare} style={{ marginTop: 34, display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <PlaceField label="From" value={source} onChange={setSource} placeholder="Where you start" dot="#0A0A0A" />
+          <PlaceField label="To" value={dest} onChange={setDest} placeholder="Where you are going" dot="#F2B01E" />
+          <Pill variant="solid" disabled={loading || !source.trim() || !dest.trim()} style={{ height: 54, padding: '0 28px' }}>
+            {loading ? 'Comparing…' : 'Compare'}
+          </Pill>
+        </form>
 
-            {error ? (
-              <div style={{ marginTop: 12, fontSize: 12.5, color: color.red }}>{error}</div>
-            ) : null}
-            {result?.warning ? (
-              <div style={{ marginTop: 12, fontSize: 12.5, color: '#B45E09' }}>{result.warning}</div>
-            ) : null}
-          </PanelBody>
-        </Panel>
+        {error ? <p className="copy" style={{ marginTop: 16, color: SEV.critical.ink }}>{error}</p> : null}
+        {result?.warning ? <p className="copy" style={{ marginTop: 16, color: SEV.medium.ink }}>{result.warning}</p> : null}
+      </section>
 
-        {selected ? (
-          <Panel flush>
-            <TripMap
-              route={selected.coordinates}
-              hazards={selected.hazards}
-              source={result!.source}
-              destination={result!.destination}
-              height={430}
+      {selected ? (
+        <section className="shell rise" style={{ borderRadius: 20, overflow: 'hidden' }}>
+          <TripMap
+            route={selected.coordinates}
+            hazards={selected.hazards}
+            source={result!.source}
+            destination={result!.destination}
+            height={460}
+          />
+        </section>
+      ) : null}
+
+      {result ? (
+        <section className="shell stack-md">
+          <SectionHead kicker="Your options" title={`${result.options.length} way${result.options.length === 1 ? '' : 's'} there`} />
+          <div style={{ height: 8 }} />
+          {result.options.map((o) => (
+            <OptionCard
+              key={o.id}
+              o={o}
+              active={o.id === selected?.id}
+              onPick={() => setChosen(o.id)}
+              corridorM={result.corridorM}
             />
-          </Panel>
-        ) : null}
+          ))}
+        </section>
+      ) : (
+        <section className="shell">
+          <Empty
+            kicker="How it works"
+            title="Two places, every road between them"
+            body="Routes come from OpenStreetMap; the damage on them comes from what drivers have already sent in. A route with nothing reported means nobody has filmed it — not that it is smooth."
+          />
+        </section>
+      )}
 
-        {result ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {result.options.map((o) => (
-              <OptionCard
-                key={o.id}
-                o={o}
-                active={o.id === selected?.id}
-                onPick={() => setChosen(o.id)}
-                corridorM={result.corridorM}
-              />
+      {/* ── worst streets ────────────────────────────────────────────── */}
+      {stretches.length ? (
+        <section className="stack-lg">
+          <div className="shell">
+            <SectionHead kicker="Avoid" title="Worst streets on record" sub="By reported damage, worst first" />
+          </div>
+          <div className="rail shell">
+            {stretches.map((s) => (
+              <article key={s.address} className="card card-interactive" style={{ width: 256, padding: 10 }}>
+                <div className="shot shot-wash" style={{ aspectRatio: '4 / 3', borderRadius: 12 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s.imageUrl} alt="" />
+                  <div style={{ position: 'absolute', left: 12, right: 12, bottom: 10, zIndex: 2 }}>
+                    <span className="figure" style={{ fontSize: 30, color: '#fff' }}>{s.count}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginLeft: 7 }}>
+                      defect{s.count === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ padding: '12px 5px 4px' }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 650,
+                      letterSpacing: '-0.014em',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {s.address}
+                  </div>
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: SEV[s.worst].ink }} />
+                    <Eyebrow>
+                      {SEV[s.worst].label}
+                      {s.openTickets ? ` · ${s.openTickets} ticketed` : ''}
+                    </Eyebrow>
+                  </div>
+                </div>
+              </article>
             ))}
           </div>
-        ) : (
-          <Panel>
-            <PanelBody>
-              <p className="sub" style={{ color: color.c.muted, lineHeight: 1.6 }}>
-                Put in two places to compare. Routes come from OpenStreetMap; the damage on them comes
-                from what drivers have already sent in, so a route with nothing reported means nobody has
-                driven it with a camera — not that it is smooth.
-              </p>
-            </PanelBody>
-          </Panel>
-        )}
-      </div>
-
-      <div className="rs-fixed" style={{ width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Panel>
-          <PanelHead
-            title="Stretches with the most reported damage"
-            sub={stretches.length ? 'By street, worst first' : undefined}
-          />
-          <PanelBody style={{ paddingTop: 8 }}>
-            {stretches.length ? (
-              stretches.map((s, i) => (
-                <div
-                  key={s.address}
-                  style={{
-                    display: 'flex',
-                    gap: 11,
-                    alignItems: 'center',
-                    padding: '10px 0',
-                    borderBottom: i < stretches.length - 1 ? '1px solid #F5F5F5' : undefined,
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={s.imageUrl}
-                    alt=""
-                    style={{
-                      width: 56,
-                      height: 38,
-                      objectFit: 'cover',
-                      borderRadius: 6,
-                      border: `1px solid ${color.c.line}`,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: 'block',
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        letterSpacing: '-0.011em',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {s.address}
-                    </span>
-                    <span className="tiny" style={{ color: color.c.muted, display: 'block', marginTop: 3 }}>
-                      {s.count} defect{s.count === 1 ? '' : 's'}
-                      {s.openTickets ? ` · ${s.openTickets} ticketed` : ''}
-                    </span>
-                  </span>
-                  <Chip tone={severityTone[s.worst]}>{s.worst}</Chip>
-                </div>
-              ))
-            ) : (
-              <p className="tiny" style={{ color: color.c.muted, lineHeight: 1.6 }}>
-                No streets named yet. A street name is attached when a defect is reverse geocoded during
-                analysis — turn on <em>Look up street names</em> on the{' '}
-                <Link href="/upload" style={{ color: color.blue }}>
-                  Upload
-                </Link>{' '}
-                page.
-              </p>
-            )}
-          </PanelBody>
-        </Panel>
-      </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -214,79 +180,76 @@ function OptionCard({
   onPick: () => void;
   corridorM: number;
 }) {
-  const tone = o.worst ? severityTone[o.worst] : 'green';
+  const clear = o.hazards.length === 0;
+  const tint = o.worst ? SEV[o.worst].ink : SEV.good.ink;
+  const isSmoothest = o.labels.includes('smoothest');
+
   return (
-    <Panel
+    <article
       onClick={onPick}
+      className="card card-interactive"
       style={{
-        padding: 14,
-        cursor: 'pointer',
-        borderColor: active ? '#0A0A0A' : color.c.line,
+        padding: 'clamp(20px, 2.6vw, 30px)',
+        borderColor: active ? 'var(--ink)' : undefined,
+        boxShadow: active ? '0 0 0 1.5px var(--ink), var(--lift-1)' : undefined,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        {o.labels.map((l) => (
-          <Chip key={l} tone={LABEL_TONE[l]} dot={l === 'smoothest'}>
-            {l}
-          </Chip>
-        ))}
-        {!o.labels.length ? <Chip tone="neutral">alternative</Chip> : null}
-        <span style={{ flex: 1 }} />
-        <span className="num" style={{ fontSize: 18 }}>
-          {formatDuration(o.durationS)}
-        </span>
-        <span className="tiny" style={{ color: color.c.muted }}>
-          {formatDistance(o.distanceM)}
-        </span>
+        {o.labels.length ? (
+          o.labels.map((l) => (
+            <span
+              key={l}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                height: 28,
+                padding: '0 13px',
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.02em',
+                background: l === 'smoothest' ? SEV.good.wash : '#F2F0EC',
+                color: l === 'smoothest' ? SEV.good.ink : 'var(--ink-2)',
+              }}
+            >
+              {LABEL_COPY[l] ?? l}
+            </span>
+          ))
+        ) : (
+          <Eyebrow>Alternative</Eyebrow>
+        )}
       </div>
 
-      <div style={{ display: 'flex', gap: 18, marginTop: 12, flexWrap: 'wrap' }}>
-        <Stat
-          label="on this route"
-          value={`${o.hazards.length}`}
-          tint={o.hazards.length ? toneColor(tone, 'light') : color.green}
+      <div style={{ display: 'flex', gap: 44, marginTop: 22, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <Figure value={formatDuration(o.durationS)} label="drive time" />
+        <Figure value={formatDistance(o.distanceM)} label="distance" />
+        <Figure
+          value={clear ? 'none' : o.hazards.length}
+          label="defects on it"
+          tint={clear ? SEV.good.ink : tint}
         />
-        <Stat label="damage per km" value={o.roughPerKm.toFixed(1)} />
-        <Stat
-          label="worst on it"
-          value={o.worst ?? 'nothing reported'}
-          tint={o.worst ? toneColor(tone, 'light') : color.green}
-        />
-        {o.slowerByS > 30 ? <Stat label="slower by" value={formatDuration(o.slowerByS)} /> : null}
+        <Figure value={o.roughPerKm.toFixed(1)} label="damage per km" />
       </div>
 
-      {o.hazards.length ? (
-        <Inset style={{ marginTop: 12 }}>
-          <div className="tiny" style={{ color: color.c.muted, lineHeight: 1.55 }}>
+      <p className="copy" style={{ marginTop: 22, maxWidth: '64ch' }}>
+        {clear ? (
+          <>Nothing reported within {corridorM} m of this line — an absence of reports, not a guarantee.</>
+        ) : (
+          <>
+            {isSmoothest && o.slowerByS > 30 ? (
+              <strong style={{ color: 'var(--ink)' }}>
+                {formatDuration(o.slowerByS)} slower, and the gentlest road of the {' '}
+                {o.hazards.length === 1 ? 'lot' : 'lot'}.{' '}
+              </strong>
+            ) : null}
             {o.hazards
-              .slice(0, 4)
-              .map(
-                (h) =>
-                  `${CLASS_LABEL[h.damageClass] ?? h.damageClass} at ${(h.alongM / 1000).toFixed(1)} km`,
-              )
+              .slice(0, 3)
+              .map((h) => `${CLASS_LABEL[h.damageClass] ?? h.damageClass} at ${(h.alongM / 1000).toFixed(1)} km`)
               .join(' · ')}
-            {o.hazards.length > 4 ? ` · and ${o.hazards.length - 4} more` : ''}
-          </div>
-        </Inset>
-      ) : (
-        <div className="tiny" style={{ color: color.c.muted, marginTop: 10, lineHeight: 1.55 }}>
-          Nothing reported within {corridorM} m of this line. That is an absence of reports, not a
-          guarantee of a good surface.
-        </div>
-      )}
-    </Panel>
-  );
-}
-
-function Stat({ label, value, tint }: { label: string; value: string; tint?: string }) {
-  return (
-    <span>
-      <span className="num" style={{ fontSize: 17, display: 'block', color: tint, textTransform: 'capitalize' }}>
-        {value}
-      </span>
-      <span className="tiny" style={{ color: color.c.muted }}>
-        {label}
-      </span>
-    </span>
+            {o.hazards.length > 3 ? ` · and ${o.hazards.length - 3} more` : ''}
+          </>
+        )}
+      </p>
+    </article>
   );
 }

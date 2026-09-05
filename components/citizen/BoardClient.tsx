@@ -1,29 +1,24 @@
 'use client';
 
+/**
+ * The board.
+ *
+ * A league table, so it should read like one: rank, name, and the single
+ * number that decides the ranking, at a size you can read across a room.
+ * Breached deadlines lead, because that is the number an office would rather
+ * you did not see.
+ */
+
 import React from 'react';
-import Link from 'next/link';
-import { Bar, Btn, Chip, Inset, Panel, PanelBody, PanelHead } from '@/components/system';
+import { Empty, Eyebrow, Figure, Pill, SectionHead, SEV } from './ui';
 import type { BoardRow } from '@/lib/authority';
-import { color, toneColor } from '@/lib/tokens';
 
 const LEVEL_LABEL: Record<string, string> = {
-  ward_engineer: 'Ward',
-  executive_engineer: 'Zone',
-  commissioner: 'City',
-  state_department: 'State',
+  ward_engineer: 'Municipal',
+  executive_engineer: 'State works',
+  commissioner: 'National highways',
+  state_department: 'Ministry',
   public: 'Public',
-};
-
-const TH: React.CSSProperties = {
-  color: color.c.muted,
-  padding: '0 10px 9px',
-  borderBottom: `1px solid ${color.c.line}`,
-};
-const TD: React.CSSProperties = {
-  padding: '11px 10px',
-  borderBottom: '1px solid #F5F5F5',
-  color: color.c.ink,
-  verticalAlign: 'middle',
 };
 
 export default function BoardClient({
@@ -44,119 +39,109 @@ export default function BoardClient({
     }),
     { open: 0, breached: 0, fixed: 0, reopened: 0 },
   );
-  const worstOpen = Math.max(1, ...rows.map((r) => r.open));
 
   return (
-    <div className="scrollarea" style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20 }}>
-        <div>
-          <h1 className="h1">Who is fixing what</h1>
-          <p className="sub" style={{ color: color.c.muted, marginTop: 7 }}>
-            Every authority that owns tickets here, and how they are doing against their own deadlines.
-          </p>
-        </div>
-        <Link href="/upload">
-          <Btn primary>Send in a road</Btn>
-        </Link>
-      </div>
+    <div className="stack-xl" style={{ paddingTop: 48 }}>
+      <section className="shell">
+        <Eyebrow>Accountability</Eyebrow>
+        <h1 className="display" style={{ marginTop: 16, maxWidth: '14ch' }}>
+          Who is fixing what.
+        </h1>
+        <p className="lede" style={{ marginTop: 18 }}>
+          Every office that owns road repairs here, measured against deadlines they are held to — not
+          against their own account of how it is going.
+        </p>
+      </section>
 
       {!configured ? (
-        <Panel style={{ padding: '12px 15px', borderColor: '#FAE7C6', background: '#FFFCF5' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#B45E09' }}>No road database connected</div>
-        </Panel>
+        <section className="shell">
+          <Empty kicker="Offline" title="No road database connected" body="Set MONGODB_URI in .env.local." />
+        </section>
       ) : null}
 
       {rows.length ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
-            {[
-              [String(rows.length), 'authorities with tickets', undefined],
-              [String(totals.open), 'open right now', undefined],
-              [String(totals.breached), 'past their deadline', totals.breached ? color.red : undefined],
-              [String(totals.fixed), 'verified fixed', totals.fixed ? color.green : undefined],
-              [String(totals.reopened), 'came back after repair', totals.reopened ? color.red : undefined],
-            ].map(([v, l, c]) => (
-              <Panel key={l as string} style={{ padding: '12px 14px' }}>
-                <div className="num" style={{ fontSize: 26, color: (c as string) ?? color.c.ink }}>{v}</div>
-                <div className="tiny" style={{ color: color.c.muted, marginTop: 6 }}>{l}</div>
-              </Panel>
-            ))}
-          </div>
-
-          <Panel flush>
-            <PanelHead title="By authority" sub="Most breached deadlines first" />
-            <div style={{ padding: '12px 12px 6px' }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col" style={TH}>Authority</th>
-                    <th scope="col" style={TH}>Open work</th>
-                    <th scope="col" style={{ ...TH, textAlign: 'right' }}>Past deadline</th>
-                    <th scope="col" style={{ ...TH, textAlign: 'right' }}>Fixed</th>
-                    <th scope="col" style={{ ...TH, textAlign: 'right' }}>Came back</th>
-                    <th scope="col" style={{ ...TH, textAlign: 'right' }}>Median days</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.id}>
-                      <td style={TD}>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{r.name}</div>
-                        <div className="tiny" style={{ color: color.c.muted, marginTop: 3 }}>
-                          {LEVEL_LABEL[r.level] ?? r.level}
-                        </div>
-                      </td>
-                      <td style={TD}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                          <Bar value={(r.open / worstOpen) * 100} width={110} color={color.c.ink} />
-                          <span className="num" style={{ fontSize: 14 }}>{r.open}</span>
-                        </div>
-                      </td>
-                      <td style={{ ...TD, textAlign: 'right' }}>
-                        {r.breached ? <Chip tone="red">{r.breached}</Chip> : <span className="mono" style={{ color: color.c.dim }}>0</span>}
-                      </td>
-                      <td style={{ ...TD, textAlign: 'right', color: r.fixed ? toneColor('green', 'light') : undefined }}>
-                        <span className="num" style={{ fontSize: 14 }}>{r.fixed}</span>
-                      </td>
-                      <td style={{ ...TD, textAlign: 'right' }}>
-                        {r.reopened ? <Chip tone="red">{r.reopened}</Chip> : <span className="mono" style={{ color: color.c.dim }}>0</span>}
-                      </td>
-                      <td style={{ ...TD, textAlign: 'right' }}>
-                        <span className="mono">{r.medianFixDays ?? '—'}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <section className="shell">
+            <div className="ink-panel" style={{ padding: 'clamp(26px, 3.4vw, 46px)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 30 }}>
+                <Figure value={totals.open} label="open right now" onInk />
+                <Figure
+                  value={totals.breached}
+                  label="past deadline"
+                  onInk
+                  tint={totals.breached ? '#FDA29B' : undefined}
+                />
+                <Figure value={totals.fixed} label="verified fixed" onInk tint={totals.fixed ? '#7FE0AC' : undefined} />
+                <Figure
+                  value={totals.reopened}
+                  label="came back"
+                  onInk
+                  tint={totals.reopened ? '#FDA29B' : undefined}
+                />
+              </div>
             </div>
-          </Panel>
+          </section>
+
+          <section className="shell stack-md">
+            <SectionHead kicker="The table" title="Ranked by broken promises" />
+            <div style={{ height: 6 }} />
+            {rows.map((r, i) => (
+              <article
+                key={r.id}
+                className="card"
+                style={{ padding: 'clamp(18px, 2.4vw, 26px)', display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}
+              >
+                <span
+                  className="figure"
+                  style={{ fontSize: 34, width: 52, color: 'var(--ink-3)', flexShrink: 0 }}
+                >
+                  {i + 1}
+                </span>
+
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <h3 className="title">{r.name}</h3>
+                  <div style={{ marginTop: 7 }}>
+                    <Eyebrow>{LEVEL_LABEL[r.level] ?? r.level}</Eyebrow>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 34, flexWrap: 'wrap' }}>
+                  <Figure value={r.open} label="open" />
+                  <Figure
+                    value={r.breached}
+                    label="past deadline"
+                    tint={r.breached ? SEV.critical.ink : undefined}
+                  />
+                  <Figure value={r.fixed} label="fixed" tint={r.fixed ? SEV.good.ink : undefined} />
+                  <Figure
+                    value={r.reopened}
+                    label="came back"
+                    tint={r.reopened ? SEV.critical.ink : undefined}
+                  />
+                  <Figure value={r.medianFixDays != null ? `${r.medianFixDays}d` : '—'} label="median fix" />
+                </div>
+              </article>
+            ))}
+          </section>
         </>
       ) : (
-        <Panel>
-          <PanelHead title="No authorities registered yet" />
-          <PanelBody>
-            <p className="sub" style={{ color: color.c.muted, lineHeight: 1.6 }}>
-              This board ranks the offices that own road repairs. None have been registered, so every
-              ticket raised so far is unassigned — {unassigned} of them right now.
-            </p>
-            <Inset style={{ marginTop: 12 }}>
-              <p className="tiny" style={{ color: color.c.muted, lineHeight: 1.6, margin: 0 }}>
-                An authority is a real organisation with a real jurisdiction, so nothing is seeded here.
-                Register one with a GeoJSON boundary and every ticket inside it routes there on arrival,
-                with its own deadlines and its own row on this board.
-              </p>
-            </Inset>
-          </PanelBody>
-        </Panel>
+        <section className="shell">
+          <Empty
+            kicker="No tickets owned yet"
+            title="Nobody has been given a road to fix"
+            body={`Authorities are registered, but no ticket has been routed to one — ${unassigned} open ticket${unassigned === 1 ? '' : 's'} currently sit outside every registered jurisdiction. Once an office owns work, its record appears here.`}
+            action={<Pill variant="mark" href="/upload">Send in a road</Pill>}
+          />
+        </section>
       )}
 
       {unassigned && rows.length ? (
-        <Inset>
-          <span className="tiny" style={{ color: color.c.muted, lineHeight: 1.6 }}>
-            {unassigned} open ticket{unassigned === 1 ? '' : 's'} sit outside every registered jurisdiction,
-            so nobody owns them yet.
-          </span>
-        </Inset>
+        <section className="shell">
+          <p className="copy" style={{ color: 'var(--ink-3)' }}>
+            {unassigned} open ticket{unassigned === 1 ? '' : 's'} sit outside every registered
+            jurisdiction, so nobody owns them yet.
+          </p>
+        </section>
       ) : null}
     </div>
   );
