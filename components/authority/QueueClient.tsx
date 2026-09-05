@@ -36,7 +36,7 @@ export default function QueueClient({
       (!states.length || states.includes(r.state)) &&
       (!severities.length || severities.includes(r.severity)) &&
       (!classes.length || classes.includes(r.damageClass)) &&
-      (!breachedOnly || r.daysOver != null),
+      (!breachedOnly || r.urgency === 'breached'),
   );
 
   const classesPresent = [...new Set(rows.map((r) => r.damageClass))];

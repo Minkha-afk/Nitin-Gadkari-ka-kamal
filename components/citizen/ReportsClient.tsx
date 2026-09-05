@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Bar, Btn, Chip, Inset, Panel, PanelBody, PanelHead } from '@/components/system';
 import type { MyDefect, MyReports, MyTicket } from '@/lib/reports';
-import { color, severityColor, severityTone, slaTone, toneColor } from '@/lib/tokens';
+import { color, severityColor, severityTone, toneColor } from '@/lib/tokens';
 import { CLASS_LABEL, type TicketState } from '@/lib/types';
 
 const STATE_TONE: Record<TicketState, 'red' | 'amber' | 'blue' | 'green' | 'neutral' | 'brand'> = {
@@ -227,7 +227,7 @@ export default function ReportsClient({ data }: { data: MyReports }) {
 }
 
 function TicketRow({ t }: { t: MyTicket }) {
-  const tone = slaTone(t.daysOver, t.daysLeft);
+  const tone = t.urgency === 'breached' ? 'red' : t.urgency === 'soon' ? 'amber' : 'neutral';
   return (
     <tr>
       <td style={TD}>
@@ -251,13 +251,7 @@ function TicketRow({ t }: { t: MyTicket }) {
       <td style={TD}>
         <Chip tone={STATE_TONE[t.state]}>{STATE_LABEL[t.state]}</Chip>
       </td>
-      <td style={{ ...TD, textAlign: 'right', color: toneColor(tone, 'light') }}>
-        {t.daysOver != null
-          ? `${t.daysOver} d over`
-          : t.daysLeft != null
-            ? `${t.daysLeft} d left`
-            : '—'}
-      </td>
+      <td style={{ ...TD, textAlign: 'right', color: toneColor(tone, 'light') }}>{t.dueLabel}</td>
     </tr>
   );
 }

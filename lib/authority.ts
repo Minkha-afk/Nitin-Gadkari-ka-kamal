@@ -24,7 +24,7 @@ import {
   type TicketDoc,
   type TicketEventDoc,
 } from './mongo';
-import { slaStanding } from './sla';
+import { slaStanding, type Urgency } from './sla';
 import { verifyChain } from './tickets';
 import type { AuthorityLevel, DamageClass, Severity, TicketState } from './types';
 
@@ -157,9 +157,14 @@ export interface TicketRow {
   contractorId: string | null;
   passes: number;
   escalationCount: number;
+  /** Ready to print, e.g. "40 min left" or "3 h over". */
+  dueLabel: string;
+  urgency: Urgency;
+  breached: boolean;
+  hoursOver?: number;
+  hoursLeft?: number;
   daysOver?: number;
   daysLeft?: number;
-  breached: boolean;
   createdAt: string;
   slaAckDue: string;
   slaFixDue: string;

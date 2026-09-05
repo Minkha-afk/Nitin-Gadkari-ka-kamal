@@ -38,22 +38,15 @@ export const LEVEL_LABEL: Record<string, string> = {
 };
 
 export function slaTone(row: TicketRow): Tone {
-  if (row.daysOver != null) return 'red';
-  if (row.daysLeft != null && row.daysLeft <= 2) return 'amber';
+  if (row.urgency === 'breached') return 'red';
+  if (row.urgency === 'soon') return 'amber';
   return 'neutral';
 }
 
 export function SlaCell({ row }: { row: TicketRow }) {
-  const tone = slaTone(row);
-  const text =
-    row.daysOver != null
-      ? `${row.daysOver} d over`
-      : row.daysLeft != null
-        ? `${row.daysLeft} d left`
-        : 'settled';
   return (
-    <span className="num" style={{ fontSize: 13, color: toneColor(tone, 'dark') }}>
-      {text}
+    <span className="num" style={{ fontSize: 13, color: toneColor(slaTone(row), 'dark') }}>
+      {row.dueLabel}
     </span>
   );
 }

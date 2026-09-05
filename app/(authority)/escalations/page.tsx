@@ -16,8 +16,8 @@ export default async function EscalationsPage() {
   const scope = await selectedScope();
   const [{ rows, configured }, label] = await Promise.all([getQueue(scope), scopeName(scope)]);
   const escalated = rows.filter((r) => r.escalationCount > 0);
-  const breached = rows.filter((r) => r.daysOver != null);
-  const dueSoon = rows.filter((r) => r.daysOver == null && r.daysLeft != null && r.daysLeft <= 2);
+  const breached = rows.filter((r) => r.urgency === 'breached');
+  const dueSoon = rows.filter((r) => r.urgency === 'soon');
   return (
     <EscalationsClient
       escalated={escalated}

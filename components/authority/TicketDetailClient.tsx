@@ -81,8 +81,8 @@ export default function TicketDetailClient({
             </Chip>
             <Chip tone={STATE_TONE[ticket.state]}>{STATE_LABEL[ticket.state]}</Chip>
             <SlaPlate
-              value={ticket.daysOver ?? ticket.daysLeft ?? '—'}
-              unit={ticket.daysOver != null ? 'days over' : 'days left'}
+              value={ticket.dueLabel.split(' ').slice(0, -1).join(' ')}
+              unit={ticket.dueLabel.split(' ').slice(-1)[0] === 'left' ? 'left' : 'over'}
               tone={slaTone(ticket)}
             />
           </>

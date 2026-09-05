@@ -7,7 +7,7 @@
  */
 
 import { defects, isConfigured, tickets, uploads, type DefectDoc, type TicketDoc } from './mongo';
-import { slaStanding } from './sla';
+import { slaStanding, type Urgency } from './sla';
 import type { DamageClass, Severity, TicketState } from './types';
 
 export interface MyDefect {
@@ -38,9 +38,13 @@ export interface MyTicket {
   level: string;
   authorityId: string | null;
   passes: number;
+  dueLabel: string;
+  urgency: Urgency;
+  breached: boolean;
+  hoursOver?: number;
+  hoursLeft?: number;
   daysOver?: number;
   daysLeft?: number;
-  breached: boolean;
   createdAt: string;
   slaFixDue: string;
 }

@@ -86,7 +86,7 @@ export default function EscalationsClient({
 
         <KpiRow>
           <KpiTile label="Past fix deadline" value={breached.length} tone={breached.length ? 'red' : undefined} />
-          <KpiTile label="Due within 2 days" value={dueSoon.length} tone={dueSoon.length ? 'amber' : undefined} />
+          <KpiTile label="In the last quarter of their window" value={dueSoon.length} tone={dueSoon.length ? 'amber' : undefined} />
           <KpiTile label="Escalated" value={escalated.length} tone={escalated.length ? 'amber' : undefined} sub="climbed at least one level" />
           <KpiTile label="At the top" value={escalated.filter((t) => t.level === 'state_department').length} sub="state department" />
           <KpiTile label="Open in scope" value={breached.length + dueSoon.length} sub="needing attention" />
@@ -106,8 +106,8 @@ export default function EscalationsClient({
         </Panel>
 
         <Panel flush>
-          <PanelHead title="Due within two days" />
-          <TicketTable rows={dueSoon} emptyNote="Nothing falls due in the next two days." />
+          <PanelHead title="Running out of time" sub="Less than a quarter of the fix window left" />
+          <TicketTable rows={dueSoon} emptyNote="Nothing is close to its fix deadline." />
         </Panel>
       </Main>
     </>
