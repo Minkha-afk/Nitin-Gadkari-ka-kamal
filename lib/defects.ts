@@ -17,12 +17,15 @@ const RANK: Record<Severity, number> = { good: 0, low: 1, medium: 2, high: 3, cr
 export interface IngestMeta {
   fileName?: string | null;
   kind?: 'image' | 'video';
+  /** Which browser sent it in, from the rs_device cookie. */
+  deviceId?: string | null;
 }
 
 export function buildDocs(result: AnalyzeResult, meta: IngestMeta = {}) {
   const now = new Date();
   const capturedAt = result.processedAt ?? now.toISOString();
   const fileName = meta.fileName ?? null;
+  const deviceId = meta.deviceId ?? null;
   const byId = new Map<string, DefectDoc>();
 
   for (const item of result.items) {
@@ -74,6 +77,8 @@ export function buildDocs(result: AnalyzeResult, meta: IngestMeta = {}) {
         sightings: existing ? existing.sightings : 1,
         fileName,
         capturedAt,
+        deviceId,
+        ticketId: existing?.ticketId ?? null,
         createdAt: now, // $setOnInsert keeps the original on re-ingest
         updatedAt: now,
       });
@@ -93,6 +98,7 @@ export function buildDocs(result: AnalyzeResult, meta: IngestMeta = {}) {
     locatedCount: docs.filter((d) => d.location).length,
     disclaimer: result.disclaimer ?? null,
     processedAt: result.processedAt ?? null,
+    deviceId,
     createdAt: now,
   };
 
