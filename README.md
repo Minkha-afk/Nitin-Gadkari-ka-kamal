@@ -77,28 +77,38 @@ long tables scroll inside their panel instead.
 
 ## Sample data
 
-`npm run seed` fills the database with enough road to work the ticketing system:
-five authorities forming the full ladder (two Guwahati wards → east zone →
-GMC commissioner → Assam PWD), three panel contractors, and twelve tickets
-spread across every state, several already forwarded partway up the chain.
-Audit chains are hash-linked exactly as the app writes them, so seeded tickets
-verify as intact.
+`npm run seed` fills the database with road damage to work the ticketing system
+on — fourteen defects across every severity and damage class, including two
+pairs close enough together to exercise clustering.
+
+It seeds damage and nothing else. Authorities and contractors are real
+organisations; whichever ones you have registered (MoRTH, NHAI, a ward office)
+are the ones a ticket should route to, so the script never invents any. Nor does
+it write tickets: once the defects exist it asks the running app to open them
+through `POST /api/tickets`, so clustering, jurisdiction routing and the
+hash-chained audit trail all come from `lib/tickets.ts` rather than a copy of
+it. Start `npm run dev` first.
 
 ```
-npm run seed                    insert or refresh it
-npm run seed -- --reset         delete it, then insert it again
-npm run seed -- --drop          delete it and stop
-npm run seed -- --device <id>   report it as your browser (the rs_device cookie)
+npm run seed                        insert it and open the tickets
+npm run seed -- --reset             delete it, then do that again
+npm run seed -- --drop              delete it and stop
+npm run seed -- --near <lat,lng>    put the damage inside a jurisdiction of yours
+npm run seed -- --url <origin>      the running app (default localhost:3000)
+npm run seed -- --device <id>       file it under your rs_device cookie
+npm run seed -- --no-tickets        write the defects and stop
 ```
 
-It only ever touches what it wrote — authorities `hj-`, contractors `hj-c-`,
-tickets `HJ-<year>-`, defects and uploads `seed:`. Evidence thumbnails are flat
-placeholders written to `public/seed/`, so nothing depends on the ML service
+Without `--near` the damage is centred on your most local registered
+jurisdiction, so the tickets land with a real owner; with no jurisdictions
+registered it falls back to Guwahati and reports the tickets as unowned. Only
+the critical and high defects are ticketed, matching what the app auto-tickets
+on upload — the six milder ones stay in the incoming pile. Evidence thumbnails
+are flat placeholders in `public/seed/`, so nothing depends on the ML service
 having seen these roads.
 
-Worth trying: `HJ-<year>-0002` is old and never forwarded, `-0005` is already
-with the state department so forwarding it must refuse, `-0010` is closed, and
-`-0012` sits outside every jurisdiction and shows what an unowned ticket does.
+The script only removes what it wrote: uploads and defects prefixed `seed:`, and
+the tickets covering those defects.
 
 ## Known gaps
 

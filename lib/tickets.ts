@@ -292,9 +292,12 @@ export async function transition(
  * timer firing in the background — nobody can later claim the system escalated
  * it on its own.
  *
- * The ticket follows the authority tree where there is one: if the office
- * currently holding it has a registered parent, ownership moves there too, so
- * "forwarded" means a different desk, not just a different label.
+ * The ticket follows your authority tree, not a fixed four-rung ladder. If the
+ * office holding it has a registered parent, the ticket lands on that desk and
+ * takes that desk's level — so a chain that goes NHAI package office → MoRTH
+ * climbs the way your organisation actually does, skipping rungs it does not
+ * use. The generic ladder in lib/ladder.ts is only the fallback for a ticket
+ * whose owner has no parent registered, or no owner at all.
  */
 export async function forwardUp(
   ticketId: string,
@@ -304,14 +307,21 @@ export async function forwardUp(
   const col = await tickets();
   const ticket = await col.findOne({ _id: ticketId });
   if (!ticket) throw new Error(`no ticket ${ticketId}`);
-
-  const to = nextLevel(ticket.level);
-  if (!to) throw new Error('this ticket is already with the state department — there is no level above it');
   if (SETTLED.includes(ticket.state)) {
     throw new Error(`cannot forward a ticket that is ${ticket.state} — reopen it first`);
   }
 
-  const authorityId = await parentAuthorityOf(ticket.authorityId, to);
+  const parent = await parentAuthorityOf(ticket.authorityId);
+  const to = parent?.level ?? nextLevel(ticket.level);
+  if (!to) {
+    throw new Error(
+      'this ticket is already at the top of the chain — no office above the one holding it is registered',
+    );
+  }
+
+  // Only fall back to "some office at that level" when the tree could not name
+  // one: an unowned ticket has to land somewhere to be chased.
+  const authorityId = parent?._id ?? (await anyAuthorityAt(to)) ?? ticket.authorityId;
   const now = new Date();
 
   await col.updateOne(
@@ -325,25 +335,25 @@ export async function forwardUp(
     ticketId,
     'forwarded',
     actor,
-    opts.note?.trim() || `Forwarded up from ${ticket.level} to ${to}`,
+    opts.note?.trim() ||
+      (parent
+        ? `Forwarded up to ${parent.name}`
+        : `Forwarded up from ${ticket.level} to ${to}`),
     'warn',
   );
   return (await col.findOne({ _id: ticketId }))!;
 }
 
-/**
- * The office above this one, when the tree knows of one. Falls back to the
- * current owner rather than to nobody: losing the assignment on the way up
- * would make the ticket harder to chase, not easier.
- */
-async function parentAuthorityOf(authorityId: string | null, to: AuthorityLevel) {
+/** The office registered as this one's parent, if the tree knows of one. */
+async function parentAuthorityOf(authorityId: string | null) {
   if (!authorityId) return null;
   const col = await authorities();
   const current = await col.findOne({ _id: authorityId });
-  if (current?.parentId) {
-    const parent = await col.findOne({ _id: current.parentId });
-    if (parent) return parent._id;
-  }
-  const anyAtLevel = await col.findOne({ level: to });
-  return anyAtLevel?._id ?? authorityId;
+  if (!current?.parentId) return null;
+  return (await col.findOne({ _id: current.parentId })) ?? null;
+}
+
+async function anyAuthorityAt(level: AuthorityLevel) {
+  const col = await authorities();
+  return (await col.findOne({ level }))?._id ?? null;
 }

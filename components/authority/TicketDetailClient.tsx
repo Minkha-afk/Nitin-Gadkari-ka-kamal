@@ -249,7 +249,7 @@ export default function TicketDetailClient({
                 </Btn>
                 <p className="tiny" style={{ color: color.a.dim, marginTop: 7, lineHeight: 1.5 }}>
                   {ticket.atTopOfChain
-                    ? 'Already with the state department — there is no level above it.'
+                    ? 'Already at the top of the chain — no office above this one is registered.'
                     : settled
                       ? 'The work is done. Reopen it before sending it up.'
                       : `Hands it to whoever is above the ${(LEVEL_LABEL[ticket.level] ?? ticket.level).toLowerCase()}, signed by you.`}
